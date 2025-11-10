@@ -1,11 +1,12 @@
 import os
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder
 
 # -------------------------
 # 1️⃣ Variabili d'ambiente
 # -------------------------
 TOKEN = os.getenv("TELEGRAM_TOKEN")
+app = ApplicationBuilder().token(TOKEN).build()
 PORT = int(os.getenv("PORT", 10000))
 WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL") + "/webhook"
 
