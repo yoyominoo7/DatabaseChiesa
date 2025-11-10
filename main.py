@@ -24,9 +24,7 @@ def webhook():
     return "OK", 200
 
 # --- Setup Webhook quando parte il server ---
-@app.before_first_request
-def set_webhook():
-    asyncio.run(bot_app.bot.set_webhook(WEBHOOK_URL))
+asyncio.run(bot_app.bot.set_webhook(WEBHOOK_URL))
 
 # --- Avvio server Flask ---
 if __name__ == "__main__":
