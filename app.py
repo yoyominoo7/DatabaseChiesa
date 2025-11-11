@@ -170,6 +170,12 @@ async def enter_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.delete()
 
+    if update.message.reply_to_message:
+        try:
+            await update.message.reply_to_message.delete()
+        except Exception:
+            pass
+
     await update.message.reply_text(
         f"Confermi la prenotazione per: {context.user_data['sacrament'].replace('_',' ')}?\nNote: {notes or '-'}",
         reply_markup=confirm_keyboard()
