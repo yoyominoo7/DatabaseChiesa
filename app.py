@@ -1,4 +1,3 @@
-# app.py
 import os
 import logging
 from datetime import datetime, timedelta, timezone
@@ -10,7 +9,6 @@ from telegram import (
     ReplyKeyboardMarkup,
     KeyboardButton,
 )
-from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -22,9 +20,9 @@ from telegram.ext import (
 )
 
 from sqlalchemy import (
-    create_engine, Column, Integer, String, DateTime, Boolean, ForeignKey, Enum
+    create_engine, Column, Integer, String, DateTime, Boolean, ForeignKey
 )
-from sqlalchemy.orm import sessionmaker, declarative_base, relationship
+from sqlalchemy.orm import sessionmaker, declarative_base
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -59,15 +57,15 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     telegram_id = Column(Integer, unique=True, nullable=False)
-    role = Column(String, nullable=False)  # client, secretary, priest, director
+    role = Column(String, nullable=False)
     rp_name = Column(String)
     nickname_mc = Column(String)
 
 class Booking(Base):
     __tablename__ = "bookings"
     id = Column(Integer, primary_key=True)
-    source = Column(String, nullable=False)  # telegram, ingame
-    client_telegram_id = Column(Integer)     # nullable for ingame
+    source = Column(String, nullable=False)
+    client_telegram_id = Column(Integer)
     rp_name = Column(String)
     nickname_mc = Column(String)
     sacrament = Column(String, nullable=False)
@@ -81,9 +79,9 @@ class Assignment(Base):
     id = Column(Integer, primary_key=True)
     booking_id = Column(Integer, ForeignKey("bookings.id"))
     priest_telegram_id = Column(Integer)
-    assigned_by = Column(Integer)  # director id
+    assigned_by = Column(Integer)
     assigned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    taken_at = Column(DateTime)    # quando il sacerdote prende
+    taken_at = Column(DateTime)
     due_alert_sent = Column(Boolean, default=False)
 
 class EventLog(Base):
@@ -109,33 +107,21 @@ def is_director(user_id: int) -> bool:
     return user_id in DIRECTORS_IDS
 
 def role_required(check_func, msg="Permesso negato."):
-    async def wrapper(func):
-        async def inner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def decorator(func):
+        async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id = update.effective_user.id
             if not check_func(user_id):
                 await update.effective_message.reply_text(msg)
                 return
             return await func(update, context)
-        return inner
-    return wrapper
-
+        return wrapper
+    return decorator
 # ---- CONVERSATION STATES ----
-(
-    START_SACRAMENT,
-    ENTER_NOTES,
-    CONFIRM_BOOKING,
-) = range(3)
-
-(
-    IG_RP_NAME,
-    IG_NICK,
-    IG_SACRAMENT,
-    IG_NOTES,
-    IG_CONFIRM,
-) = range(5)
+START_SACRAMENT, ENTER_NOTES, CONFIRM_BOOKING = range(3)
+IG_RP_NAME, IG_NICK, IG_SACRAMENT, IG_NOTES, IG_CONFIRM = range(5)
 
 def sacrament_keyboard():
-    buttons = [[InlineKeyboardButton(s.title().replace("_", " "), callback_data=f"sac_{s}") ] for s in SACRAMENTS]
+    buttons = [[InlineKeyboardButton(s.title().replace("_", " "), callback_data=f"sac_{s}")] for s in SACRAMENTS]
     cancel = [InlineKeyboardButton("Annulla", callback_data="cancel")]
     return InlineKeyboardMarkup(buttons + [cancel])
 
@@ -163,7 +149,9 @@ async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     sacr = query.data[4:]
     context.user_data["sacrament"] = sacr
-    await query.edit_message_text(f"Hai scelto: {sacr.replace('_',' ')}.\nAggiungi eventuali note o richieste speciali, oppure scrivi 'no'.")
+    await query.edit_message_text(
+        f"Hai scelto: {sacr.replace('_',' ')}.\nAggiungi eventuali note o richieste speciali, oppure scrivi 'no'."
+    )
     return ENTER_NOTES
 
 async def enter_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -222,7 +210,7 @@ async def confirm_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     finally:
         session.close()
-
+# ---- SACERDOTI: presa in carico ----
 async def priests_take(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -336,11 +324,10 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     finally:
         session.close()
-
 # ---- DIREZIONE: ASSEGNAZIONE ----
 @role_required(is_director, "Solo la Direzione può assegnare.")
 async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # /assegna <booking_id> @username | <telegram_id>
+    # /assegna <booking_id> <@username|telegram_id>
     args = update.message.text.split()
     if len(args) < 3:
         await update.message.reply_text("Uso: /assegna <booking_id> <@username|telegram_id>")
@@ -349,7 +336,6 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target = args[2]
     priest_id = None
     if target.startswith("@"):
-        # in produzione mappa username->id via DB/registro
         await update.message.reply_text("Specificare telegram_id del sacerdote (consigliato) oppure assicurarsi sia registrato.")
         return
     else:
@@ -420,7 +406,6 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not b:
             await update.message.reply_text("Prenotazione inesistente.")
             return
-        # verifica assegnazione al sacerdote
         a = session.query(Assignment).filter(
             Assignment.booking_id == booking_id,
             Assignment.priest_telegram_id == priest_id
@@ -434,7 +419,6 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.add(EventLog(booking_id=b.id, actor_id=priest_id, action="complete", details=""))
         session.commit()
         await update.message.reply_text(f"Prenotazione #{b.id} contrassegnata come completata.")
-        # Notifica Direzione
         await context.bot.send_message(DIRECTORS_GROUP_ID, f"Sacramento completato #{b.id} da {priest_id}.")
     finally:
         session.close()
@@ -443,111 +427,106 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Processo annullato.")
     return ConversationHandler.END
+# ---- DIREZIONE: ASSEGNAZIONE ----
+@role_required(is_director, "Solo la Direzione può assegnare.")
+async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # /assegna <booking_id> <@username|telegram_id>
+    args = update.message.text.split()
+    if len(args) < 3:
+        await update.message.reply_text("Uso: /assegna <booking_id> <@username|telegram_id>")
+        return
+    booking_id = int(args[1])
+    target = args[2]
+    priest_id = None
+    if target.startswith("@"):
+        await update.message.reply_text("Specificare telegram_id del sacerdote (consigliato) oppure assicurarsi sia registrato.")
+        return
+    else:
+        priest_id = int(target)
+    if not is_priest(priest_id):
+        await update.message.reply_text("L'utente indicato non è registrato come sacerdote.")
+        return
 
-# ---- ALERT 48H + REPORT ----
-async def check_sla(context: ContextTypes.DEFAULT_TYPE):
     session = SessionLocal()
     try:
-        now = datetime.now(timezone.utc)
-        threshold = now - timedelta(hours=48)
-        # prenotazioni assegnate/in_progress con taken/assigned vecchie
-        overdue = session.query(Assignment).all()
-        for a in overdue:
+        booking = session.query(Booking).get(booking_id)
+        if not booking:
+            await update.message.reply_text("Prenotazione inesistente.")
+            return
+        booking.status = "assigned"
+        booking.updated_at = datetime.now(timezone.utc)
+        session.add(booking)
+
+        assign = Assignment(
+            booking_id=booking.id,
+            priest_telegram_id=priest_id,
+            assigned_by=update.effective_user.id,
+        )
+        session.add(assign)
+        session.add(EventLog(booking_id=booking.id, actor_id=update.effective_user.id, action="assign", details=f"to {priest_id}"))
+        session.commit()
+        await update.message.reply_text(f"Prenotazione #{booking.id} assegnata a {priest_id}.")
+        await context.bot.send_message(priest_id, f"Ti è stata assegnata la prenotazione #{booking.id}. Usa /mie_assegnazioni per i dettagli.")
+    finally:
+        session.close()
+
+# ---- SACERDOTE: LISTA E COMPLETAMENTO ----
+@role_required(is_priest, "Solo i sacerdoti possono visualizzare le assegnazioni.")
+async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    priest_id = update.effective_user.id
+    session = SessionLocal()
+    try:
+        assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
+        if not assigns:
+            await update.message.reply_text("Nessuna assegnazione.")
+            return
+        msgs = []
+        for a in assigns:
             b = session.query(Booking).get(a.booking_id)
-            if not b or b.status == "completed":
+            if not b:
                 continue
-            ref_time = a.taken_at or a.assigned_at
-            if ref_time and ref_time < threshold and not a.due_alert_sent:
-                a.due_alert_sent = True
-                session.add(a)
-                session.add(EventLog(booking_id=b.id, actor_id=0, action="alert", details="48h SLA"))
-                session.commit()
-                await context.bot.send_message(
-                    DIRECTORS_GROUP_ID,
-                    f"ALERT: Prenotazione #{b.id} in lista di {a.priest_telegram_id} da oltre 48h."
-                )
+            msgs.append(
+                f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')}\n"
+                f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
+                f"Note: {b.notes or '-'}"
+            )
+        await update.message.reply_text("\n\n".join(msgs))
     finally:
         session.close()
 
-async def weekly_report(context: ContextTypes.DEFAULT_TYPE):
+@role_required(is_priest, "Solo i sacerdoti possono completare.")
+async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # /completa <booking_id>
+    args = update.message.text.split()
+    if len(args) != 2:
+        await update.message.reply_text("Uso: /completa <booking_id>")
+        return
+    booking_id = int(args[1])
+    priest_id = update.effective_user.id
     session = SessionLocal()
     try:
-        now = datetime.now(timezone.utc)
-        # settimana: lun->dom (puoi adattare)
-        start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-        # filtro completati
-        completed = session.query(Booking).filter(
-            Booking.status == "completed",
-            Booking.updated_at >= start
-        ).all()
-        total = len(completed)
-        per_priest = {}
-        for b in completed:
-            a = session.query(Assignment).filter(Assignment.booking_id == b.id).first()
-            pid = a.priest_telegram_id if a else "N/A"
-            per_priest[pid] = per_priest.get(pid, 0) + 1
-        lines = [f"Report settimanale (da {start.date()}):"]
-        lines.append(f"- Totale sacramenti completati: {total}")
-        for pid, num in sorted(per_priest.items(), key=lambda x: x[1], reverse=True):
-            lines.append(f"- Sacerdote {pid}: {num}")
-        # code aperte
-        open_items = session.query(Booking).filter(Booking.status.in_(["pending","assigned","in_progress"])).count()
-        lines.append(f"- Prenotazioni ancora aperte: {open_items}")
-        await context.bot.send_message(DIRECTORS_GROUP_ID, "\n".join(lines))
+        b = session.query(Booking).get(booking_id)
+        if not b:
+            await update.message.reply_text("Prenotazione inesistente.")
+            return
+        a = session.query(Assignment).filter(
+            Assignment.booking_id == booking_id,
+            Assignment.priest_telegram_id == priest_id
+        ).first()
+        if not a:
+            await update.message.reply_text("Questa prenotazione non ti è assegnata.")
+            return
+        b.status = "completed"
+        b.updated_at = datetime.now(timezone.utc)
+        session.add(b)
+        session.add(EventLog(booking_id=b.id, actor_id=priest_id, action="complete", details=""))
+        session.commit()
+        await update.message.reply_text(f"Prenotazione #{b.id} contrassegnata come completata.")
+        await context.bot.send_message(DIRECTORS_GROUP_ID, f"Sacramento completato #{b.id} da {priest_id}.")
     finally:
         session.close()
 
-def build_application():
-    init_db()
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    # Client booking conversation
-    conv_client = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            START_SACRAMENT: [CallbackQueryHandler(choose_sacrament)],
-            ENTER_NOTES: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_notes)],
-            CONFIRM_BOOKING: [CallbackQueryHandler(confirm_booking)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel_handler)],
-        allow_reentry=True,
-    )
-    app.add_handler(conv_client)
-
-    # Take in priests group
-    app.add_handler(CallbackQueryHandler(priests_take, pattern=r"^take_\d+$"))
-
-    # Ingame booking conversation (secretaries)
-    conv_ingame = ConversationHandler(
-        entry_points=[CommandHandler("prenota_ingame", prenota_ingame)],
-        states={
-            IG_RP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ig_rp_name)],
-            IG_NICK: [MessageHandler(filters.TEXT & ~filters.COMMAND, ig_nick)],
-            IG_SACRAMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, ig_sacrament)],
-            IG_NOTES: [MessageHandler(filters.TEXT & ~filters.COMMAND, ig_notes)],
-            IG_CONFIRM: [CallbackQueryHandler(ig_confirm)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel_handler)],
-        allow_reentry=True,
-    )
-    app.add_handler(conv_ingame)
-
-    # Direzione
-    app.add_handler(CommandHandler("assegna", assegna))
-
-    # Sacerdoti
-    app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
-    app.add_handler(CommandHandler("completa", completa))
-
-    # Scheduler jobs
-    scheduler = AsyncIOScheduler(timezone="UTC")
-    scheduler.add_job(check_sla, "interval", hours=1, args=[app.bot])
-    scheduler.add_job(weekly_report, "cron", day_of_week="sun", hour=23, minute=55, args=[app.bot])
-    scheduler.start()
-
-    return app
-
-if __name__ == "__main__":
-    app = build_application()
-    # Polling semplice; per Render/HTTPS usa webhook
-    app.run_polling()
+# ---- CANCEL ----
+async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Processo annullato.")
+    return ConversationHandler.END
