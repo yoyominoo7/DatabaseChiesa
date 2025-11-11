@@ -177,10 +177,13 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if role == "sacerdote":
         await query.edit_message_text("Benvenuto sacerdote! Usa i comandi per gestire le tue assegnazioni.")
+        return ConversationHandler.END
     elif role == "segretario":
         await query.edit_message_text("Benvenuto segretario! Usa /prenota_ingame per registrare una prenotazione in-game.")
+        return ConversationHandler.END
     elif role == "direzione":
         await query.edit_message_text("Benvenuto Direttore! Usa /assegna o /lista_prenotazioni per gestire le prenotazioni.")
+        return ConversationHandler.END
     elif role == "fedele":
         # Flusso standard da fedele
         await query.edit_message_text(
@@ -191,6 +194,7 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="Seleziona il sacramento:",
             reply_markup=sacrament_keyboard()
         )
+        # IMPORTANTE: ritorna lo stato iniziale della conversazione
         return START_SACRAMENT
 
 async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
