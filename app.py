@@ -1,6 +1,8 @@
 import os
 import logging
 from datetime import datetime, timedelta, timezone
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, BigInteger
+from datetime import datetime, timezone
 
 from telegram import (
     Update,
@@ -56,7 +58,7 @@ STATUS = ["pending", "assigned", "in_progress", "completed", "canceled"]
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True, nullable=False)
+    telegram_id = Column(BigInteger, unique=True, nullable=False)
     role = Column(String, nullable=False)
     rp_name = Column(String)
     nickname_mc = Column(String)
@@ -65,7 +67,7 @@ class Booking(Base):
     __tablename__ = "bookings"
     id = Column(Integer, primary_key=True)
     source = Column(String, nullable=False)
-    client_telegram_id = Column(Integer)
+    client_telegram_id = Column(BigInteger)
     rp_name = Column(String)
     nickname_mc = Column(String)
     sacrament = Column(String, nullable=False)
@@ -78,8 +80,8 @@ class Assignment(Base):
     __tablename__ = "assignments"
     id = Column(Integer, primary_key=True)
     booking_id = Column(Integer, ForeignKey("bookings.id"))
-    priest_telegram_id = Column(Integer)
-    assigned_by = Column(Integer)
+    priest_telegram_id = Column(BigInteger)
+    assigned_by = Column(BigInteger)
     assigned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     taken_at = Column(DateTime)
     due_alert_sent = Column(Boolean, default=False)
@@ -88,7 +90,7 @@ class EventLog(Base):
     __tablename__ = "events_log"
     id = Column(Integer, primary_key=True)
     booking_id = Column(Integer)
-    actor_id = Column(Integer)
+    actor_id = Column(BigInteger)
     action = Column(String)
     ts = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     details = Column(String)
