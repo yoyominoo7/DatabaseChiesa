@@ -1,10 +1,7 @@
 import os
 import threading
 from flask import Flask
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from telegram import Update
-
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+from app import build_application   # importa la funzione dal tuo app.py
 
 # --- Flask web server ---
 flask_app = Flask(__name__)
@@ -15,17 +12,12 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
-    # IMPORTANTE: disattiva il reloader per evitare doppie istanze
+    # IMPORTANTE: disattiva il reloader per evitare doppie istanze del bot
     flask_app.run(host="0.0.0.0", port=port, use_reloader=False)
 
-# --- Telegram bot ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Ciao! Il bot è attivo 🚀")
-
+# --- Avvio bot ---
 def run_bot():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-
+    app = build_application()
     # Avvia il polling, eliminando eventuali update pendenti
     app.run_polling(drop_pending_updates=True)
 
