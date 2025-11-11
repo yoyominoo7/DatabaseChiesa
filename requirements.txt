@@ -1,3 +1,4 @@
+--no-cache-dir
 python-telegram-bot==21.3
 SQLAlchemy==2.0.36
 psycopg==3.2.12
