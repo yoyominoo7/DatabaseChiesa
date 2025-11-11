@@ -530,3 +530,107 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Processo annullato.")
     return ConversationHandler.END
+# ---- SCHEDULER ----
+async def check_sla(app):
+    session = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        threshold = now - timedelta(hours=48)
+        overdue = session.query(Assignment).all()
+        for a in overdue:
+            b = session.query(Booking).get(a.booking_id)
+            if not b or b.status == "completed":
+                continue
+            ref_time = a.taken_at or a.assigned_at
+            if ref_time and ref_time < threshold and not a.due_alert_sent:
+                a.due_alert_sent = True
+                session.add(a)
+                session.add(EventLog(booking_id=b.id, actor_id=0, action="alert", details="48h SLA"))
+                session.commit()
+                await app.bot.send_message(
+                    DIRECTORS_GROUP_ID,
+                    f"ALERT: Prenotazione #{b.id} in lista di {a.priest_telegram_id} da oltre 48h."
+                )
+    finally:
+        session.close()
+
+async def weekly_report(app):
+    session = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        completed = session.query(Booking).filter(
+            Booking.status == "completed",
+            Booking.updated_at >= start
+        ).all()
+        total = len(completed)
+        per_priest = {}
+        for b in completed:
+            a = session.query(Assignment).filter(Assignment.booking_id == b.id).first()
+            pid = a.priest_telegram_id if a else "N/A"
+            per_priest[pid] = per_priest.get(pid, 0) + 1
+        lines = [f"Report settimanale (da {start.date()}):"]
+        lines.append(f"- Totale sacramenti completati: {total}")
+        for pid, num in sorted(per_priest.items(), key=lambda x: x[1], reverse=True):
+            lines.append(f"- Sacerdote {pid}: {num}")
+        open_items = session.query(Booking).filter(Booking.status.in_(["pending","assigned","in_progress"])).count()
+        lines.append(f"- Prenotazioni ancora aperte: {open_items}")
+        await app.bot.send_message(DIRECTORS_GROUP_ID, "\n".join(lines))
+    finally:
+        session.close()
+
+# ---- BUILD APPLICATION ----
+def build_application():
+    init_db()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    # Client booking conversation
+    conv_client = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            START_SACRAMENT: [CallbackQueryHandler(choose_sacrament)],
+            ENTER_NOTES: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_notes)],
+            CONFIRM_BOOKING: [CallbackQueryHandler(confirm_booking)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_handler)],
+        allow_reentry=True,
+    )
+    app.add_handler(conv_client)
+
+    # Take in priests group
+    app.add_handler(CallbackQueryHandler(priests_take, pattern=r"^take_\d+$"))
+
+    # Ingame booking conversation (secretaries)
+    conv_ingame = ConversationHandler(
+        entry_points=[CommandHandler("prenota_ingame", prenota_ingame)],
+        states={
+            IG_RP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ig_rp_name)],
+            IG_NICK: [MessageHandler(filters.TEXT & ~filters.COMMAND, ig_nick)],
+            IG_SACRAMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, ig_sacrament)],
+            IG_NOTES: [MessageHandler(filters.TEXT & ~filters.COMMAND, ig_notes)],
+            IG_CONFIRM: [CallbackQueryHandler(ig_confirm)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_handler)],
+        allow_reentry=True,
+    )
+    app.add_handler(conv_ingame)
+
+    # Direzione
+    app.add_handler(CommandHandler("assegna", assegna))
+
+    # Sacerdoti
+    app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
+    app.add_handler(CommandHandler("completa", completa))
+
+    # Scheduler jobs
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    scheduler.add_job(check_sla, "interval", hours=1, args=[app])
+    scheduler.add_job(weekly_report, "cron", day_of_week="sun", hour=23, minute=55, args=[app])
+    scheduler.start()
+
+    return app
+
+# ---- MAIN ----
+if __name__ == "__main__":
+    app = build_application()
+    app.run_polling()
