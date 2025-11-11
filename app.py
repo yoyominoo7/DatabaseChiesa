@@ -631,7 +631,3 @@ def build_application():
     scheduler.start()
 
     return app
-import asyncio
-if __name__ == "__main__":
-    app = build_application()
-    asyncio.run(app.run_polling())
