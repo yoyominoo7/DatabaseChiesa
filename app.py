@@ -135,11 +135,50 @@ def confirm_keyboard():
 
 # ---- CLIENT FLOW ----
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    roles = []
+
+    if is_priest(user_id):
+        roles.append("sacerdote")
+    if is_secretary(user_id):
+        roles.append("segretario")
+    if is_director(user_id):
+        roles.append("direzione")
+
+    if not roles:
+        await update.message.reply_text(
+            "Benvenuto! Scegli il sacramento che desideri prenotare. Puoi aggiungere note in seguito."
+        )
+        await update.message.reply_text("Seleziona il sacramento:", reply_markup=sacrament_keyboard())
+        return START_SACRAMENT
+
+    if len(roles) == 1:
+        role = roles[0]
+        if role == "sacerdote":
+            await update.message.reply_text("Benvenuto sacerdote! Usa i comandi per gestire le tue assegnazioni.")
+        elif role == "segretario":
+            await update.message.reply_text("Benvenuto segretario! Usa /prenota_ingame per registrare una prenotazione in-game.")
+        elif role == "direzione":
+            await update.message.reply_text("Benvenuto Direttore! Usa /assegna o /lista_prenotazioni per gestire le prenotazioni.")
+        return ConversationHandler.END
+
+    buttons = [[InlineKeyboardButton(r.capitalize(), callback_data=f"role_{r}")] for r in roles]
     await update.message.reply_text(
-        "Benvenuto! Scegli il sacramento che desideri prenotare. Puoi aggiungere note in seguito."
+        "Hai più ruoli. Seleziona con quale ruolo vuoi operare:",
+        reply_markup=InlineKeyboardMarkup(buttons)
     )
-    await update.message.reply_text("Seleziona il sacramento:", reply_markup=sacrament_keyboard())
-    return START_SACRAMENT
+    return ConversationHandler.END
+async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    role = query.data.replace("role_", "")
+
+    if role == "sacerdote":
+        await query.edit_message_text("Benvenuto sacerdote! Usa i comandi per gestire le tue assegnazioni.")
+    elif role == "segretario":
+        await query.edit_message_text("Benvenuto segretario! Usa /prenota_ingame per registrare una prenotazione in-game.")
+    elif role == "direzione":
+        await query.edit_message_text("Benvenuto Direttore! Usa /assegna o /lista_prenotazioni per gestire le prenotazioni.")
 
 
 async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -710,6 +749,7 @@ def build_application():
         allow_reentry=True,
     )
     app.add_handler(conv_ingame)
+    app.add_handler(CallbackQueryHandler(choose_role, pattern=r"^role_"))
 
     # Direzione
     app.add_handler(CommandHandler("assegna", assegna))
