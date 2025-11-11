@@ -141,6 +141,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Seleziona il sacramento:", reply_markup=sacrament_keyboard())
     return START_SACRAMENT
 
+
 async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -151,16 +152,24 @@ async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     sacr = query.data[4:]
     context.user_data["sacrament"] = sacr
-    await query.edit_message_text(
-        f"Hai scelto: {sacr.replace('_',' ')}.\nAggiungi eventuali note o richieste speciali, oppure scrivi 'no'."
+
+    await query.delete_message()
+
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text=f"Hai scelto: {sacr.replace('_',' ')}.\nAggiungi eventuali note o richieste speciali, oppure scrivi 'no'."
     )
     return ENTER_NOTES
+
 
 async def enter_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     notes = update.message.text.strip()
     if notes.lower() == "no":
         notes = ""
     context.user_data["notes"] = notes
+
+    await update.message.delete()
+
     await update.message.reply_text(
         f"Confermi la prenotazione per: {context.user_data['sacrament'].replace('_',' ')}?\nNote: {notes or '-'}",
         reply_markup=confirm_keyboard()
