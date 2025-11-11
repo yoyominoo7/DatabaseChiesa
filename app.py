@@ -580,11 +580,17 @@ async def weekly_report(app):
         await app.bot.send_message(DIRECTORS_GROUP_ID, "\n".join(lines))
     finally:
         session.close()
+async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.exception("Unhandled error", exc_info=context.error)
+    if update and update.effective_message:
+        await update.effective_message.reply_text("Si è verificato un errore. Riprova tra poco.")
 
 # ---- BUILD APPLICATION ----
 def build_application():
     init_db()
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_error_handler(on_error)
+
 
     # Client booking conversation
     conv_client = ConversationHandler(
