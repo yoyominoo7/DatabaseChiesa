@@ -163,6 +163,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     buttons = [[InlineKeyboardButton(r.capitalize(), callback_data=f"role_{r}")] for r in roles]
+    buttons.append([InlineKeyboardButton("Fedele", callback_data="role_fedele")])
+
     await update.message.reply_text(
         "Hai più ruoli. Seleziona con quale ruolo vuoi operare:",
         reply_markup=InlineKeyboardMarkup(buttons)
@@ -179,7 +181,17 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Benvenuto segretario! Usa /prenota_ingame per registrare una prenotazione in-game.")
     elif role == "direzione":
         await query.edit_message_text("Benvenuto Direttore! Usa /assegna o /lista_prenotazioni per gestire le prenotazioni.")
-
+    elif role == "fedele":
+        # Flusso standard da fedele
+        await query.edit_message_text(
+            "Benvenuto! Scegli il sacramento che desideri prenotare. Puoi aggiungere note in seguito."
+        )
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="Seleziona il sacramento:",
+            reply_markup=sacrament_keyboard()
+        )
+        return START_SACRAMENT
 
 async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
