@@ -133,13 +133,13 @@ IG_RP_NAME, IG_NICK, IG_SACRAMENT, IG_NOTES, IG_CONFIRM = range(5)
 
 def sacrament_keyboard():
     buttons = [[InlineKeyboardButton(s.title().replace("_", " "), callback_data=f"sac_{s}")] for s in SACRAMENTS]
-    cancel = [InlineKeyboardButton("Annulla", callback_data="cancel")]
+    cancel = [InlineKeyboardButton("❌Annulla", callback_data="cancel")]
     return InlineKeyboardMarkup(buttons + [cancel])
 
 def confirm_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Conferma", callback_data="confirm")],
-        [InlineKeyboardButton("Annulla", callback_data="cancel")],
+        [InlineKeyboardButton("✅Conferma", callback_data="confirm")],
+        [InlineKeyboardButton("❌Annulla", callback_data="cancel")],
     ])
 
 # ---- CLIENT FLOW ----
@@ -235,7 +235,15 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif role == "fedele":
         # Flusso standard da fedele
         await query.edit_message_text(
-            "Benvenuto! Scegli il sacramento che desideri prenotare. Puoi aggiungere note in seguito."
+            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄",
+            f"MESSAGGIO DI BENVENUTO",
+            f"",
+            f"Benvenuto nel bot ufficiale del Culto di Poseidone! Attraverso questo bot potrai richiedere di prenotare lo svolgimento di un sacramento direttamente da telegram.",
+            f"",
+            f"Per iniziare, scegli se vuoi prenotare un singolo sacramento oppure più sacramenti.",
+            f"",
+            f"Ricorda, l'uso improprio del bot comporterà il ban permanente da esso. Se hai difficoltà o riscontri problemi contatta @LavatiScimmiaInfuocata.",
+            
         )
         await context.bot.send_message(
             chat_id=query.message.chat_id,
