@@ -10,6 +10,8 @@ from telegram import (
     InlineKeyboardButton,
     ReplyKeyboardMarkup,
     KeyboardButton,
+    Message,
+    CallbackQuery,
 )
 from telegram.ext import (
     ApplicationBuilder,
@@ -997,13 +999,12 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
     finally:
         session.close()
 
-
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
         msg = f"Nessuna prenotazione trovata per {titolo}."
         if isinstance(target, Message):  # caso comando
             await target.reply_text(msg)
-        else:  # caso callback
+        elif isinstance(target, CallbackQuery):  # caso callback
             await target.edit_message_text(msg)
         return
 
@@ -1033,8 +1034,9 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     # 🔎 Distinzione chiara
     if isinstance(target, Message):  # arrivo da comando
         await target.reply_text(text, reply_markup=kb)
-    else:  # arrivo da callback
+    elif isinstance(target, CallbackQuery):  # arrivo da bottone
         await target.edit_message_text(text, reply_markup=kb)
+
 
 
 async def lista_prenotazioni_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
