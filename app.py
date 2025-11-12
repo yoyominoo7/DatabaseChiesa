@@ -94,6 +94,12 @@ class EventLog(Base):
     action = Column(String)
     ts = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     details = Column(String)
+class Priest(Base):
+    __tablename__ = "priests"
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=False)
+    username = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 def init_db():
     Base.metadata.create_all(engine)
@@ -136,11 +142,27 @@ def confirm_keyboard():
 
 # ---- CLIENT FLOW ----
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
     roles = []
 
+    # --- Registrazione automatica sacerdote ---
     if is_priest(user_id):
+        session = SessionLocal()
+        try:
+            priest = session.query(Priest).filter_by(telegram_id=user_id).first()
+            if priest:
+                # aggiorna username se cambiato
+                priest.username = user.username
+            else:
+                priest = Priest(telegram_id=user_id, username=user.username)
+                session.add(priest)
+            session.commit()
+        finally:
+            session.close()
         roles.append("sacerdote")
+    # ------------------------------------------
+
     if is_secretary(user_id):
         roles.append("segretario")
     if is_director(user_id):
@@ -156,6 +178,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb
         )
         return CHOOSE_MODE
+
     # Caso: un solo ruolo → messaggio automatico
     if len(roles) == 1:
         role = roles[0]
@@ -175,8 +198,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Hai più ruoli. Seleziona con quale ruolo vuoi operare:",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
-    # IMPORTANTE: NON chiudere qui, lascia che choose_role gestisca
     return CHOOSE_ROLE
+
 async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
