@@ -121,6 +121,7 @@ def role_required(check_func, msg="Permesso negato."):
 # ---- CONVERSATION STATES ----
 START_SACRAMENT, ENTER_NOTES, CONFIRM_BOOKING = range(3)
 IG_RP_NAME, IG_NICK, IG_SACRAMENT, IG_NOTES, IG_CONFIRM = range(5)
+CHOOSE_MODE, ENTER_NICK = range(2)
 
 def sacrament_keyboard():
     buttons = [[InlineKeyboardButton(s.title().replace("_", " "), callback_data=f"sac_{s}")] for s in SACRAMENTS]
@@ -146,12 +147,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         roles.append("direzione")
 
     if not roles:
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Singolo sacramento", callback_data="mode_single")],
+            [InlineKeyboardButton("Più sacramenti", callback_data="mode_multi")],
+        ])
         await update.message.reply_text(
-            "Benvenuto! Scegli il sacramento che desideri prenotare. Puoi aggiungere note in seguito."
+            "Benvenuto! Vuoi prenotare un singolo sacramento o più sacramenti?",
+            reply_markup=kb
         )
-        await update.message.reply_text("Seleziona il sacramento:", reply_markup=sacrament_keyboard())
-        return START_SACRAMENT
-
+        return CHOOSE_MODE
+    # Caso: un solo ruolo → messaggio automatico
     if len(roles) == 1:
         role = roles[0]
         if role == "sacerdote":
@@ -162,6 +167,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Benvenuto Direttore! Usa /assegna o /lista_prenotazioni per gestire le prenotazioni.")
         return ConversationHandler.END
 
+    # Caso: più ruoli → scelta con bottoni (aggiungiamo anche 'fedele')
     buttons = [[InlineKeyboardButton(r.capitalize(), callback_data=f"role_{r}")] for r in roles]
     buttons.append([InlineKeyboardButton("Fedele", callback_data="role_fedele")])
 
@@ -169,7 +175,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Hai più ruoli. Seleziona con quale ruolo vuoi operare:",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
-    return ConversationHandler.END
+    # IMPORTANTE: NON chiudere qui, lascia che choose_role gestisca
+    return CHOOSE_ROLE
+async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    mode = query.data
+    if mode == "mode_single":
+        context.user_data["multi"] = False
+        await query.edit_message_text("Hai scelto: singolo sacramento.\nSeleziona il sacramento:")
+        await context.bot.send_message(query.message.chat_id, "Seleziona il sacramento:", reply_markup=sacrament_keyboard())
+        return START_SACRAMENT
+    elif mode == "mode_multi":
+        context.user_data["multi"] = True
+        context.user_data["sacraments"] = []
+        await query.edit_message_text("Hai scelto: più sacramenti.\nSeleziona il primo sacramento:")
+        await context.bot.send_message(query.message.chat_id, "Seleziona il sacramento:", reply_markup=sacrament_keyboard())
+        return START_SACRAMENT
+
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -194,8 +217,9 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="Seleziona il sacramento:",
             reply_markup=sacrament_keyboard()
         )
-        # IMPORTANTE: ritorna lo stato iniziale della conversazione
+        # Qui ritorni lo stato iniziale della conversazione
         return START_SACRAMENT
+
 
 async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -206,14 +230,43 @@ async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not query.data.startswith("sac_"):
         return
     sacr = query.data[4:]
-    context.user_data["sacrament"] = sacr
 
-    await query.delete_message()
+    if context.user_data.get("multi"):
+        context.user_data["sacraments"].append(sacr)
+        # Chiedi se vuole aggiungere altri sacramenti o passare al nick
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Aggiungi un altro sacramento", callback_data="add_more")],
+            [InlineKeyboardButton("Procedi al nick Minecraft", callback_data="go_nick")],
+        ])
+        await query.edit_message_text(
+            f"Hai scelto: {sacr.replace('_',' ')}.\nVuoi aggiungere un altro sacramento o procedere?",
+            reply_markup=kb
+        )
+        return START_SACRAMENT
+    else:
+        context.user_data["sacrament"] = sacr
+        await query.delete_message()
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="Inserisci il tuo nick Minecraft:"
+        )
+        return ENTER_NICK
 
-    await context.bot.send_message(
-        chat_id=query.message.chat_id,
-        text=f"Hai scelto: {sacr.replace('_',' ')}.\nAggiungi eventuali note o richieste speciali, oppure scrivi 'no'."
-    )
+async def multi_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.data == "add_more":
+        await query.edit_message_text("Seleziona un altro sacramento:", reply_markup=sacrament_keyboard())
+        return START_SACRAMENT
+    elif query.data == "go_nick":
+        await query.edit_message_text("Ora inserisci il tuo nick Minecraft:")
+        return ENTER_NICK
+
+async def enter_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    nick = update.message.text.strip()
+    context.user_data["nickname_mc"] = nick
+    await update.message.delete()
+    await update.message.reply_text("Aggiungi eventuali note (oppure scrivi 'no'):")
     return ENTER_NOTES
 
 
@@ -245,16 +298,23 @@ async def confirm_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     if query.data != "confirm":
         return
+
     user = update.effective_user
     session = SessionLocal()
     try:
+        # Gestione singolo vs multiplo
+        if context.user_data.get("multi"):
+            sacrament_value = ",".join(context.user_data.get("sacraments", []))
+        else:
+            sacrament_value = context.user_data.get("sacrament")
+
         booking = Booking(
             source="telegram",
             client_telegram_id=user.id,
             rp_name=None,
-            nickname_mc=None,
-            sacrament=context.user_data["sacrament"],
-            notes=context.user_data.get("notes",""),
+            nickname_mc=context.user_data.get("nickname_mc"),   # nuovo campo
+            sacrament=sacrament_value,
+            notes=context.user_data.get("notes", ""),
             status="pending",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -262,26 +322,31 @@ async def confirm_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.add(booking)
         session.commit()
 
-        # Log
-        session.add(EventLog(booking_id=booking.id, actor_id=user.id, action="create", details="telegram"))
+        session.add(EventLog(
+            booking_id=booking.id,
+            actor_id=user.id,
+            action="create",
+            details="telegram"
+        ))
         session.commit()
 
-        # Inoltro nel gruppo sacerdoti
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("Prendi in carico", callback_data=f"take_{booking.id}")],
         ])
         text = (
             f"Nuova richiesta #{booking.id}\n"
             f"Sacramento: {booking.sacrament.replace('_',' ')}\n"
+            f"Nick Minecraft: {booking.nickname_mc or '-'}\n"
             f"Note: {booking.notes or '-'}\n"
             f"Cliente: @{user.username or user.id}"
         )
         await context.bot.send_message(PRIESTS_GROUP_ID, text, reply_markup=kb)
 
-        await query.edit_message_text("Prenotazione registrata! Un sacerdote ti contatterà in privato.")
+        await query.edit_message_text("Prenotazione #{booking.id} registrata! Un sacerdote ti contatterà in privato.")
         return ConversationHandler.END
     finally:
         session.close()
+
 # ---- SACERDOTI: presa in carico ----
 async def priests_take(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -739,9 +804,11 @@ def build_application():
     conv_client = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            START_SACRAMENT: [CallbackQueryHandler(choose_sacrament)],
+            CHOOSE_MODE: [CallbackQueryHandler(choose_mode, pattern=r"^mode_")],
+            CHOOSE_ROLE: [CallbackQueryHandler(choose_role, pattern=r"^role_")],
+            START_SACRAMENT: [CallbackQueryHandler(choose_sacrament, pattern=r"^sac_.*|cancel")],
             ENTER_NOTES: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_notes)],
-            CONFIRM_BOOKING: [CallbackQueryHandler(confirm_booking)],
+            CONFIRM_BOOKING: [CallbackQueryHandler(confirm_booking, pattern=r"^confirm|cancel")],
         },
         fallbacks=[CommandHandler("cancel", cancel_handler)],
         allow_reentry=True,
