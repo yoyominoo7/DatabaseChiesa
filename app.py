@@ -1116,11 +1116,15 @@ def build_application():
 
     # Direzione
     app.add_handler(CommandHandler("assegna", assegna))
+    app.add_handler(CommandHandler("riassegna", riassegna))   # <--- aggiunto
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
 
     # Sacerdoti
     app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
     app.add_handler(CommandHandler("completa", completa))
+
+    # Callback per la paginazione delle assegnazioni
+    app.add_handler(CallbackQueryHandler(mie_assegnazioni_page, pattern=r"^assign_page_\d+$"))
 
     # Scheduler jobs
     scheduler = AsyncIOScheduler(timezone="UTC")
