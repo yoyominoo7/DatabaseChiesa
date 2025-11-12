@@ -397,39 +397,96 @@ async def priests_take(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---- INGAME FLOW (SECRETARIES) ----
 @role_required(is_secretary, "Solo i segretari possono usare questo comando.")
 async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Inserisci Nome e Cognome roleplay del cliente:")
+    msg = await update.message.reply_text("Inserisci Nome e Cognome roleplay del cliente:")
+    context.user_data["last_prompt_id"] = msg.message_id
     return IG_RP_NAME
 
 async def ig_rp_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["rp_name"] = update.message.text.strip()
-    await update.message.reply_text("Inserisci nick Minecraft:")
+
+    await update.message.delete()
+    if "last_prompt_id" in context.user_data:
+        try:
+            await context.bot.delete_message(update.effective_chat.id, context.user_data["last_prompt_id"])
+        except Exception:
+            pass
+
+    msg = await update.message.reply_text("Inserisci nick Minecraft:")
+    context.user_data["last_prompt_id"] = msg.message_id
     return IG_NICK
 
 async def ig_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["nickname_mc"] = update.message.text.strip()
-    kb = ReplyKeyboardMarkup([[KeyboardButton(s.replace("_"," "))] for s in SACRAMENTS], one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text("Seleziona il sacramento:", reply_markup=kb)
+
+    await update.message.delete()
+    if "last_prompt_id" in context.user_data:
+        try:
+            await context.bot.delete_message(update.effective_chat.id, context.user_data["last_prompt_id"])
+        except Exception:
+            pass
+
+    kb = ReplyKeyboardMarkup([[KeyboardButton(s.replace("_"," "))] for s in SACRAMENTS],
+                             one_time_keyboard=False, resize_keyboard=True)
+    msg = await update.message.reply_text(
+        "Seleziona uno o più sacramenti (scrivi 'fine' quando hai terminato):",
+        reply_markup=kb
+    )
+    context.user_data["last_prompt_id"] = msg.message_id
+    context.user_data["sacraments"] = []
     return IG_SACRAMENT
 
 async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = update.message.text.lower().replace(" ", "_")
+
+    # elimina messaggi
+    await update.message.delete()
+    if "last_prompt_id" in context.user_data:
+        try:
+            await context.bot.delete_message(update.effective_chat.id, context.user_data["last_prompt_id"])
+        except Exception:
+            pass
+
+    if s == "fine":
+        if not context.user_data["sacraments"]:
+            msg = await update.message.reply_text("Non hai selezionato nessun sacramento. Riprova:")
+            context.user_data["last_prompt_id"] = msg.message_id
+            return IG_SACRAMENT
+        msg = await update.message.reply_text("Aggiungi note (oppure scrivi 'no'):")
+        context.user_data["last_prompt_id"] = msg.message_id
+        return IG_NOTES
+
     if s not in SACRAMENTS:
-        await update.message.reply_text("Sacramento non valido. Riprova.")
+        msg = await update.message.reply_text("Sacramento non valido. Riprova:")
+        context.user_data["last_prompt_id"] = msg.message_id
         return IG_SACRAMENT
-    context.user_data["sacrament"] = s
-    await update.message.reply_text("Aggiungi note (oppure scrivi 'no'):")
-    return IG_NOTES
+
+    context.user_data["sacraments"].append(s)
+    msg = await update.message.reply_text("Sacramento aggiunto. Seleziona un altro oppure scrivi 'fine':")
+    context.user_data["last_prompt_id"] = msg.message_id
+    return IG_SACRAMENT
 
 async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     notes = update.message.text.strip()
+    await update.message.delete()
+    if "last_prompt_id" in context.user_data:
+        try:
+            await context.bot.delete_message(update.effective_chat.id, context.user_data["last_prompt_id"])
+        except Exception:
+            pass
+
     if notes.lower() == "no":
         notes = ""
     context.user_data["notes"] = notes
-    await update.message.reply_text(
-        f"Confermi? RP: {context.user_data['rp_name']}, Nick: {context.user_data['nickname_mc']}, "
-        f"Sacramento: {context.user_data['sacrament'].replace('_',' ')}, Note: {notes or '-'}",
+
+    sacrament_display = ", ".join(context.user_data["sacraments"])
+    msg = await update.message.reply_text(
+        f"Confermi?\nRP: {context.user_data['rp_name']}\n"
+        f"Nick: {context.user_data['nickname_mc']}\n"
+        f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
+        f"Note: {notes or '-'}",
         reply_markup=confirm_keyboard()
     )
+    context.user_data["last_prompt_id"] = msg.message_id
     return IG_CONFIRM
 
 async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -440,17 +497,19 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     if query.data != "confirm":
         return
+
     user_id = update.effective_user.id
     if not is_secretary(user_id):
         await query.edit_message_text("Permesso negato.")
         return ConversationHandler.END
+
     session = SessionLocal()
     try:
         booking = Booking(
             source="ingame",
             rp_name=context.user_data["rp_name"],
             nickname_mc=context.user_data["nickname_mc"],
-            sacrament=context.user_data["sacrament"],
+            sacrament=",".join(context.user_data["sacraments"]),
             notes=context.user_data["notes"],
             status="pending",
         )
@@ -458,8 +517,8 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.commit()
         session.add(EventLog(booking_id=booking.id, actor_id=user_id, action="create", details="ingame"))
         session.commit()
+
         await query.edit_message_text(f"Prenotazione in-game registrata con ID #{booking.id}.")
-        # Notifica alla Direzione
         await context.bot.send_message(DIRECTORS_GROUP_ID, f"Nuova prenotazione in-game #{booking.id} (solo Direzione).")
         return ConversationHandler.END
     finally:
