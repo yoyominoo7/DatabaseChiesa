@@ -527,24 +527,52 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = SessionLocal()
     try:
+        # Prepariamo la stringa dei sacramenti (singolo o multiplo)
+        sacrament_display = ", ".join(context.user_data.get("sacraments", []))
+
         booking = Booking(
             source="ingame",
             rp_name=context.user_data["rp_name"],
             nickname_mc=context.user_data["nickname_mc"],
-            sacrament=",".join(context.user_data["sacraments"]),
+            sacrament=sacrament_display,
             notes=context.user_data["notes"],
             status="pending",
         )
         session.add(booking)
         session.commit()
-        session.add(EventLog(booking_id=booking.id, actor_id=user_id, action="create", details="ingame"))
+
+        # Log dell'evento
+        session.add(EventLog(
+            booking_id=booking.id,
+            actor_id=user_id,
+            action="create",
+            details="ingame"
+        ))
         session.commit()
 
-        await query.edit_message_text(f"Prenotazione in-game registrata con ID #{booking.id}.")
-        await context.bot.send_message(DIRECTORS_GROUP_ID, f"Nuova prenotazione in-game #{booking.id} (solo Direzione).")
+        # Messaggio di conferma al segretario
+        await query.edit_message_text(
+            f"Prenotazione in-game registrata con ID #{booking.id}.\n"
+            f"RP: {booking.rp_name}\n"
+            f"Nick: {booking.nickname_mc}\n"
+            f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
+            f"Note: {booking.notes or '-'}"
+        )
+
+        # Notifica alla Direzione con riepilogo completo
+        await context.bot.send_message(
+            DIRECTORS_GROUP_ID,
+            f"Nuova prenotazione in-game #{booking.id}\n"
+            f"RP: {booking.rp_name}\n"
+            f"Nick: {booking.nickname_mc}\n"
+            f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
+            f"Note: {booking.notes or '-'}"
+        )
+
         return ConversationHandler.END
     finally:
         session.close()
+
 # ---- DIREZIONE: ASSEGNAZIONE ----
 @role_required(is_director, "Solo la Direzione può assegnare.")
 async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
