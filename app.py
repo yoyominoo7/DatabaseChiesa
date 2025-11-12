@@ -553,7 +553,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Messaggio di conferma al segretario
         await query.edit_message_text(
             f"Prenotazione in-game registrata con ID #{booking.id}.\n"
-            f"RP: {booking.rp_name}\n"
+            f"Contatto telegram: {booking.rp_name}\n"
             f"Nick: {booking.nickname_mc}\n"
             f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
             f"Note: {booking.notes or '-'}"
@@ -563,7 +563,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
             f"Nuova prenotazione in-game #{booking.id}\n"
-            f"RP: {booking.rp_name}\n"
+            f"Contatto Telegram: {booking.rp_name}\n"
             f"Nick: {booking.nickname_mc}\n"
             f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
             f"Note: {booking.notes or '-'}"
@@ -599,6 +599,7 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Username non valido o utente non trovato.")
         return
 
+    # Verifica che sia un sacerdote registrato
     if not is_priest(priest_id):
         await update.message.reply_text("L'utente indicato non è registrato come sacerdote.")
         return
@@ -635,7 +636,6 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     finally:
         session.close()
-
 
 # ---- SACERDOTE: LISTA E COMPLETAMENTO ----
 @role_required(is_priest, "Solo i sacerdoti possono visualizzare le assegnazioni.")
