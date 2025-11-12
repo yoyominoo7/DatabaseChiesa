@@ -633,6 +633,13 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Prenotazione inesistente.")
             return
 
+        # 🔎 Controllo: già assegnata?
+        existing_assign = session.query(Assignment).filter_by(booking_id=booking.id).first()
+        if booking.status == "assigned" or existing_assign:
+            await update.message.reply_text(f"La prenotazione #{booking.id} è già stata assegnata.")
+            return
+
+        # Procedi con l'assegnazione
         booking.status = "assigned"
         booking.updated_at = datetime.now(timezone.utc)
         session.add(booking)
@@ -658,6 +665,7 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     finally:
         session.close()
+
 
 # ---- SACERDOTE: LISTA E COMPLETAMENTO ----
 @role_required(is_priest, "Solo i sacerdoti possono visualizzare le assegnazioni.")
