@@ -663,8 +663,18 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
             priest_id,
             f"Ti è stata assegnata la prenotazione #{booking.id}. Usa /mie_assegnazioni per i dettagli."
         )
+
+        # Pianifica notifica dopo 48 ore se non completata
+        context.job_queue.run_once(
+            notify_uncompleted,
+            when=48*3600,  # 48 ore in secondi
+            data={"booking_id": booking.id, "priest_id": priest_id, "username": username},
+            name=f"notify_{booking.id}"
+        )
     finally:
         session.close()
+        
+@role_required(is_director, "Solo la Direzione può assegnare.")
 async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # /riassegna <booking_id> <@username>
     args = update.message.text.split()
@@ -727,6 +737,36 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
             priest_id,
             f"Ti è stata riassegnata la prenotazione #{booking.id}. Usa /mie_assegnazioni per i dettagli."
         )
+
+        # 🔎 Cancella eventuale job precedente
+        for job in context.job_queue.get_jobs_by_name(f"notify_{booking.id}"):
+            job.schedule_removal()
+
+        # Pianifica nuovo job di 48 ore
+        context.job_queue.run_once(
+            notify_uncompleted,
+            when=48*3600,  # 48 ore in secondi
+            data={"booking_id": booking.id, "priest_id": priest_id, "username": username},
+            name=f"notify_{booking.id}"
+        )
+    finally:
+        session.close()
+
+
+async def notify_uncompleted(context: ContextTypes.DEFAULT_TYPE):
+    job_data = context.job.data
+    booking_id = job_data["booking_id"]
+
+    session = SessionLocal()
+    try:
+        booking = session.query(Booking).get(booking_id)
+        if booking and booking.status == "assigned":
+            priest_id = job_data["priest_id"]
+            await context.bot.send_message(
+                DIRECTORS_GROUP_ID,
+                f"⚠️ La prenotazione #{booking.id} assegnata al sacerdote {job_data['username']} "
+                f"non è stata completata entro 48 ore."
+            )
     finally:
         session.close()
 
@@ -737,23 +777,117 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
     priest_id = update.effective_user.id
     session = SessionLocal()
     try:
-        assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
+        # Recupera tutte le assegnazioni ordinate dalla più recente
+        assigns = (
+            session.query(Assignment)
+            .filter(Assignment.priest_telegram_id == priest_id)
+            .order_by(Assignment.id.desc())
+            .all()
+        )
         if not assigns:
             await update.message.reply_text("Nessuna assegnazione.")
             return
+
+        per_page = 5
+        page = int(context.args[0]) if context.args else 1
+        total_pages = (len(assigns) + per_page - 1) // per_page
+
+        start = (page - 1) * per_page
+        end = start + per_page
+        assigns_page = assigns[start:end]
+
         msgs = []
-        for a in assigns:
+        for a in assigns_page:
             b = session.query(Booking).get(a.booking_id)
             if not b:
                 continue
-            msgs.append(
-                f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')}\n"
-                f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
-                f"Note: {b.notes or '-'}"
-            )
-        await update.message.reply_text("\n\n".join(msgs))
+            # Evidenzia quelle ancora da completare
+            if b.status == "assigned":
+                msgs.append(
+                    f"⚠️ **#{b.id} [DA COMPLETARE]** - {b.sacrament.replace('_',' ')}\n"
+                    f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
+                    f"Note: {b.notes or '-'}"
+                )
+            else:
+                msgs.append(
+                    f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')}\n"
+                    f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
+                    f"Note: {b.notes or '-'}"
+                )
+
+        text = "\n\n".join(msgs)
+        text += f"\n\nPagina {page}/{total_pages}"
+
+        buttons = []
+        if page > 1:
+            buttons.append(InlineKeyboardButton("⬅️ Indietro", callback_data=f"assign_page_{page-1}"))
+        if page < total_pages:
+            buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"assign_page_{page+1}"))
+
+        kb = InlineKeyboardMarkup([buttons]) if buttons else None
+
+        await update.message.reply_text(text, reply_markup=kb, parse_mode="Markdown")
     finally:
         session.close()
+
+
+async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    page = int(query.data.split("_")[-1])
+
+    priest_id = update.effective_user.id
+    session = SessionLocal()
+    try:
+        assigns = (
+            session.query(Assignment)
+            .filter(Assignment.priest_telegram_id == priest_id)
+            .order_by(Assignment.id.desc())
+            .all()
+        )
+        if not assigns:
+            await query.edit_message_text("Nessuna assegnazione.")
+            return
+
+        per_page = 5
+        total_pages = (len(assigns) + per_page - 1) // per_page
+        start = (page - 1) * per_page
+        end = start + per_page
+        assigns_page = assigns[start:end]
+
+        msgs = []
+        for a in assigns_page:
+            b = session.query(Booking).get(a.booking_id)
+            if not b:
+                continue
+            if b.status == "assigned":
+                msgs.append(
+                    f"⚠️ **#{b.id} [DA COMPLETARE]** - {b.sacrament.replace('_',' ')}\n"
+                    f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
+                    f"Note: {b.notes or '-'}"
+                )
+            else:
+                msgs.append(
+                    f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')}\n"
+                    f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
+                    f"Note: {b.notes or '-'}"
+                )
+
+        text = "\n\n".join(msgs)
+        text += f"\n\nPagina {page}/{total_pages}"
+
+        buttons = []
+        if page > 1:
+            buttons.append(InlineKeyboardButton("⬅️ Indietro", callback_data=f"assign_page_{page-1}"))
+        if page < total_pages:
+            buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"assign_page_{page+1}"))
+
+        kb = InlineKeyboardMarkup([buttons]) if buttons else None
+
+        await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+    finally:
+        session.close()
+
 
 @role_required(is_priest, "Solo i sacerdoti possono completare.")
 async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -762,6 +896,7 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(args) != 2:
         await update.message.reply_text("Uso: /completa <booking_id>")
         return
+
     booking_id = int(args[1])
     priest_id = update.effective_user.id
     session = SessionLocal()
@@ -770,6 +905,7 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not b:
             await update.message.reply_text("Prenotazione inesistente.")
             return
+
         a = session.query(Assignment).filter(
             Assignment.booking_id == booking_id,
             Assignment.priest_telegram_id == priest_id
@@ -777,13 +913,23 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not a:
             await update.message.reply_text("Questa prenotazione non ti è assegnata.")
             return
+
+        # Aggiorna stato
         b.status = "completed"
         b.updated_at = datetime.now(timezone.utc)
         session.add(b)
         session.add(EventLog(booking_id=b.id, actor_id=priest_id, action="complete", details=""))
         session.commit()
+
+        # Cancella eventuale job di notifica 48h
+        for job in context.job_queue.get_jobs_by_name(f"notify_{b.id}"):
+            job.schedule_removal()
+
         await update.message.reply_text(f"Prenotazione #{b.id} contrassegnata come completata.")
-        await context.bot.send_message(DIRECTORS_GROUP_ID, f"Sacramento completato #{b.id} da {priest_id}.")
+        await context.bot.send_message(
+            DIRECTORS_GROUP_ID,
+            f"Sacramento completato #{b.id} da @{update.effective_user.username or priest_id}."
+        )
     finally:
         session.close()
 
