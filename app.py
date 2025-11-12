@@ -591,21 +591,20 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     username = target.lstrip("@")
 
-    # Recupera info sull'utente tramite username
-    try:
-        priest_chat = await context.bot.get_chat(username)
-        priest_id = priest_chat.id
-    except Exception:
-        await update.message.reply_text("Username non valido o utente non trovato.")
-        return
-
-    # Verifica che sia un sacerdote registrato
-    if not is_priest(priest_id):
-        await update.message.reply_text("L'utente indicato non è registrato come sacerdote.")
-        return
-
     session = SessionLocal()
     try:
+        # Recupera l'ID del sacerdote dal DB
+        priest = session.query(Priest).filter_by(username=username).first()
+        if not priest:
+            await update.message.reply_text("Username non valido o sacerdote non registrato.")
+            return
+
+        priest_id = priest.telegram_id
+
+        if not is_priest(priest_id):
+            await update.message.reply_text("L'utente indicato non è registrato come sacerdote.")
+            return
+
         booking = session.query(Booking).get(booking_id)
         if not booking:
             await update.message.reply_text("Prenotazione inesistente.")
