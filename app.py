@@ -197,7 +197,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buttons.append([InlineKeyboardButton("Fedele", callback_data="role_fedele")])
 
     await update.message.reply_text(
-        "Hai più ruoli. Seleziona con quale ruolo vuoi operare:",
+        "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n"
+        "MESSAGGIO DI BENVENUTO\n"
+        "\n"
+        "Poiché sei un vip della chiesa, possiedi più ruoli! Però puoi usarne solo uno alla volta, scegli quale messaggio di start hai bisogno tra quelli indicati qui sotto:",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
     return CHOOSE_ROLE
@@ -235,14 +238,7 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif role == "fedele":
         # Flusso standard da fedele
         await query.edit_message_text(
-            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄",
-            f"MESSAGGIO DI BENVENUTO",
-            f"",
-            f"Benvenuto nel bot ufficiale del Culto di Poseidone! Attraverso questo bot potrai richiedere di prenotare lo svolgimento di un sacramento direttamente da telegram.",
-            f"",
-            f"Per iniziare, scegli se vuoi prenotare un singolo sacramento oppure più sacramenti.",
-            f"",
-            f"Ricorda, l'uso improprio del bot comporterà il ban permanente da esso. Se hai difficoltà o riscontri problemi contatta @LavatiScimmiaInfuocata.",
+            "Benvenuto! Scegli il sacramento che desideri prenotare. Puoi aggiungere note in seguito.",
             
         )
         await context.bot.send_message(
