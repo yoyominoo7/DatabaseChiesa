@@ -342,7 +342,10 @@ async def confirm_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await context.bot.send_message(PRIESTS_GROUP_ID, text, reply_markup=kb)
 
-        await query.edit_message_text("Prenotazione #{booking.id} registrata! Un sacerdote ti contatterà in privato.")
+        await query.edit_message_text(
+            f"Prenotazione (ID #{booking.id}) registrata! Un sacerdote ti contatterà in privato."
+        )
+
         return ConversationHandler.END
     finally:
         session.close()
