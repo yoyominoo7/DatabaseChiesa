@@ -991,7 +991,7 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             bookings = session.query(Booking).order_by(Booking.id.desc()).all()
 
-        # Primo messaggio → reply_text
+        # Primo messaggio → passo direttamente update.message
         await _send_paginated_bookings(update.message, bookings, titolo, filtro, page=1)
 
     finally:
@@ -1001,7 +1001,7 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
         msg = f"Nessuna prenotazione trovata per {titolo}."
-        if hasattr(target, "reply_text"):  # caso comando
+        if isinstance(target, Message):  # caso comando
             await target.reply_text(msg)
         else:  # caso callback
             await target.edit_message_text(msg)
@@ -1017,8 +1017,7 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     for b in bookings_page:
         lines.append(
             f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')} "
-            f"| Cliente TG: {b.client_telegram_id or '-'} "
-            f"| RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}"
+            f"| Contatto TG: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}"
         )
 
     text = "\n".join(lines) + f"\n\nPagina {page}/{total_pages}"
@@ -1031,10 +1030,10 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
 
     kb = InlineKeyboardMarkup([buttons]) if buttons else None
 
-    # 🔎 Differenza: se arrivo da comando → reply_text, se da bottone → edit_message_text
-    if hasattr(target, "reply_text"):
+    # 🔎 Distinzione chiara
+    if isinstance(target, Message):  # arrivo da comando
         await target.reply_text(text, reply_markup=kb)
-    else:
+    else:  # arrivo da callback
         await target.edit_message_text(text, reply_markup=kb)
 
 
@@ -1066,12 +1065,11 @@ async def lista_prenotazioni_page(update: Update, context: ContextTypes.DEFAULT_
         else:
             bookings = session.query(Booking).order_by(Booking.id.desc()).all()
 
-        # 🔎 Qui passo direttamente query.message → così viene modificato il messaggio
-        await _send_paginated_bookings(query.message, bookings, titolo, filtro, page)
+        # 🔎 Qui passo direttamente query (non query.message!)
+        await _send_paginated_bookings(query, bookings, titolo, filtro, page)
 
     finally:
         session.close()
-
 
 async def weekly_report(app):
     session = SessionLocal()
