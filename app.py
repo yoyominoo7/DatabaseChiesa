@@ -119,9 +119,9 @@ def role_required(check_func, msg="Permesso negato."):
         return wrapper
     return decorator
 # ---- CONVERSATION STATES ----
-START_SACRAMENT, ENTER_NOTES, CONFIRM_BOOKING = range(3)
+CHOOSE_MODE, CHOOSE_ROLE, START_SACRAMENT, ENTER_NICK, ENTER_NOTES, CONFIRM_BOOKING = range(6)
 IG_RP_NAME, IG_NICK, IG_SACRAMENT, IG_NOTES, IG_CONFIRM = range(5)
-CHOOSE_MODE, ENTER_NICK = range(2)
+
 
 def sacrament_keyboard():
     buttons = [[InlineKeyboardButton(s.title().replace("_", " "), callback_data=f"sac_{s}")] for s in SACRAMENTS]
