@@ -397,7 +397,7 @@ async def priests_take(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---- INGAME FLOW (SECRETARIES) ----
 @role_required(is_secretary, "Solo i segretari possono usare questo comando.")
 async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = await update.message.reply_text("Inserisci Nome e Cognome roleplay del cliente:")
+    msg = await update.message.reply_text("Inserisci il contatto telegram del cliente:")
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_RP_NAME
 
@@ -501,7 +501,7 @@ async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            f"Confermi?\nRP: {context.user_data['rp_name']}\n"
+            f"Confermi?\nContatto Telegram: {context.user_data['rp_name']}\n"
             f"Nick: {context.user_data['nickname_mc']}\n"
             f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
             f"Note: {notes or '-'}"
@@ -576,19 +576,29 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---- DIREZIONE: ASSEGNAZIONE ----
 @role_required(is_director, "Solo la Direzione può assegnare.")
 async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # /assegna <booking_id> <@username|telegram_id>
+    # /assegna <booking_id> <@username>
     args = update.message.text.split()
     if len(args) < 3:
-        await update.message.reply_text("Uso: /assegna <booking_id> <@username|telegram_id>")
+        await update.message.reply_text("Uso: /assegna <booking_id> <@username>")
         return
+
     booking_id = int(args[1])
     target = args[2]
-    priest_id = None
-    if target.startswith("@"):
-        await update.message.reply_text("Specificare telegram_id del sacerdote (consigliato) oppure assicurarsi sia registrato.")
+
+    if not target.startswith("@"):
+        await update.message.reply_text("Devi specificare l'@username del sacerdote (es. @nomeutente).")
         return
-    else:
-        priest_id = int(target)
+
+    username = target.lstrip("@")
+
+    # Recupera info sull'utente tramite username
+    try:
+        priest_chat = await context.bot.get_chat(username)
+        priest_id = priest_chat.id
+    except Exception:
+        await update.message.reply_text("Username non valido o utente non trovato.")
+        return
+
     if not is_priest(priest_id):
         await update.message.reply_text("L'utente indicato non è registrato come sacerdote.")
         return
@@ -599,6 +609,7 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not booking:
             await update.message.reply_text("Prenotazione inesistente.")
             return
+
         booking.status = "assigned"
         booking.updated_at = datetime.now(timezone.utc)
         session.add(booking)
@@ -609,12 +620,22 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
             assigned_by=update.effective_user.id,
         )
         session.add(assign)
-        session.add(EventLog(booking_id=booking.id, actor_id=update.effective_user.id, action="assign", details=f"to {priest_id}"))
+        session.add(EventLog(
+            booking_id=booking.id,
+            actor_id=update.effective_user.id,
+            action="assign",
+            details=f"to @{username}"
+        ))
         session.commit()
-        await update.message.reply_text(f"Prenotazione #{booking.id} assegnata a {priest_id}.")
-        await context.bot.send_message(priest_id, f"Ti è stata assegnata la prenotazione #{booking.id}. Usa /mie_assegnazioni per i dettagli.")
+
+        await update.message.reply_text(f"Prenotazione #{booking.id} assegnata a @{username}.")
+        await context.bot.send_message(
+            priest_id,
+            f"Ti è stata assegnata la prenotazione #{booking.id}. Usa /mie_assegnazioni per i dettagli."
+        )
     finally:
         session.close()
+
 
 # ---- SACERDOTE: LISTA E COMPLETAMENTO ----
 @role_required(is_priest, "Solo i sacerdoti possono visualizzare le assegnazioni.")
