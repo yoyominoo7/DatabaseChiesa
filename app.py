@@ -411,7 +411,10 @@ async def ig_rp_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    msg = await update.message.reply_text("Inserisci nick Minecraft:")
+    msg = await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Inserisci nick Minecraft:"
+    )
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_NICK
 
@@ -427,13 +430,15 @@ async def ig_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     kb = ReplyKeyboardMarkup([[KeyboardButton(s.replace("_"," "))] for s in SACRAMENTS],
                              one_time_keyboard=False, resize_keyboard=True)
-    msg = await update.message.reply_text(
-        "Seleziona uno o più sacramenti (scrivi 'fine' quando hai terminato):",
+    msg = await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Seleziona uno o più sacramenti (scrivi 'fine' quando hai terminato):",
         reply_markup=kb
     )
     context.user_data["last_prompt_id"] = msg.message_id
     context.user_data["sacraments"] = []
     return IG_SACRAMENT
+
 
 async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = update.message.text.lower().replace(" ", "_")
@@ -448,25 +453,39 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if s == "fine":
         if not context.user_data["sacraments"]:
-            msg = await update.message.reply_text("Non hai selezionato nessun sacramento. Riprova:")
+            msg = await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Non hai selezionato nessun sacramento. Riprova:"
+            )
             context.user_data["last_prompt_id"] = msg.message_id
             return IG_SACRAMENT
-        msg = await update.message.reply_text("Aggiungi note (oppure scrivi 'no'):")
+        msg = await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Aggiungi note (oppure scrivi 'no'):"
+        )
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_NOTES
 
     if s not in SACRAMENTS:
-        msg = await update.message.reply_text("Sacramento non valido. Riprova:")
+        msg = await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Sacramento non valido. Riprova:"
+        )
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_SACRAMENT
 
     context.user_data["sacraments"].append(s)
-    msg = await update.message.reply_text("Sacramento aggiunto. Seleziona un altro oppure scrivi 'fine':")
+    msg = await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Sacramento aggiunto. Seleziona un altro oppure scrivi 'fine':"
+    )
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_SACRAMENT
 
 async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     notes = update.message.text.strip()
+
+    # elimina messaggi
     await update.message.delete()
     if "last_prompt_id" in context.user_data:
         try:
@@ -479,11 +498,14 @@ async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["notes"] = notes
 
     sacrament_display = ", ".join(context.user_data["sacraments"])
-    msg = await update.message.reply_text(
-        f"Confermi?\nRP: {context.user_data['rp_name']}\n"
-        f"Nick: {context.user_data['nickname_mc']}\n"
-        f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
-        f"Note: {notes or '-'}",
+    msg = await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            f"Confermi?\nRP: {context.user_data['rp_name']}\n"
+            f"Nick: {context.user_data['nickname_mc']}\n"
+            f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
+            f"Note: {notes or '-'}"
+        ),
         reply_markup=confirm_keyboard()
     )
     context.user_data["last_prompt_id"] = msg.message_id
