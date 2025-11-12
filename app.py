@@ -991,18 +991,20 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             bookings = session.query(Booking).order_by(Booking.id.desc()).all()
 
-        await _send_paginated_bookings(update, bookings, titolo, filtro, page=1)
+        # Primo messaggio → reply_text
+        await _send_paginated_bookings(update.message, bookings, titolo, filtro, page=1)
 
     finally:
         session.close()
 
-async def _send_paginated_bookings(update_or_query, bookings, titolo, filtro, page=1):
+
+async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
         msg = f"Nessuna prenotazione trovata per {titolo}."
-        if hasattr(update_or_query, "message"):
-            await update_or_query.message.reply_text(msg)
-        else:
-            await update_or_query.edit_message_text(msg)
+        if hasattr(target, "reply_text"):  # caso comando
+            await target.reply_text(msg)
+        else:  # caso callback
+            await target.edit_message_text(msg)
         return
 
     per_page = 10
@@ -1029,10 +1031,12 @@ async def _send_paginated_bookings(update_or_query, bookings, titolo, filtro, pa
 
     kb = InlineKeyboardMarkup([buttons]) if buttons else None
 
-    if hasattr(update_or_query, "message"):
-        await update_or_query.message.reply_text(text, reply_markup=kb)
+    # 🔎 Differenza: se arrivo da comando → reply_text, se da bottone → edit_message_text
+    if hasattr(target, "reply_text"):
+        await target.reply_text(text, reply_markup=kb)
     else:
-        await update_or_query.edit_message_text(text, reply_markup=kb)
+        await target.edit_message_text(text, reply_markup=kb)
+
 
 async def lista_prenotazioni_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1062,7 +1066,8 @@ async def lista_prenotazioni_page(update: Update, context: ContextTypes.DEFAULT_
         else:
             bookings = session.query(Booking).order_by(Booking.id.desc()).all()
 
-        await _send_paginated_bookings(query, bookings, titolo, filtro, page)
+        # 🔎 Qui passo direttamente query.message → così viene modificato il messaggio
+        await _send_paginated_bookings(query.message, bookings, titolo, filtro, page)
 
     finally:
         session.close()
