@@ -665,6 +665,70 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     finally:
         session.close()
+async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # /riassegna <booking_id> <@username>
+    args = update.message.text.split()
+    if len(args) < 3:
+        await update.message.reply_text("Uso: /riassegna <booking_id> <@username>")
+        return
+
+    booking_id = int(args[1])
+    target = args[2]
+
+    if not target.startswith("@"):
+        await update.message.reply_text("Devi specificare l'@username del sacerdote (es. @nomeutente).")
+        return
+
+    username = target.lstrip("@")
+
+    session = SessionLocal()
+    try:
+        # Recupera l'ID del sacerdote dal DB
+        priest = session.query(Priest).filter_by(username=username).first()
+        if not priest:
+            await update.message.reply_text("Username non valido o sacerdote non registrato.")
+            return
+
+        priest_id = priest.telegram_id
+
+        if not is_priest(priest_id):
+            await update.message.reply_text("L'utente indicato non è registrato come sacerdote.")
+            return
+
+        booking = session.query(Booking).get(booking_id)
+        if not booking:
+            await update.message.reply_text("Prenotazione inesistente.")
+            return
+
+        # 🔎 Controllo: se non è assegnata, avvisa
+        existing_assign = session.query(Assignment).filter_by(booking_id=booking.id).first()
+        if not existing_assign:
+            await update.message.reply_text(f"La prenotazione #{booking.id} non è ancora stata assegnata. Usa /assegna.")
+            return
+
+        # Aggiorna l'assegnazione
+        existing_assign.priest_telegram_id = priest_id
+        existing_assign.assigned_by = update.effective_user.id
+        booking.updated_at = datetime.now(timezone.utc)
+        session.add(existing_assign)
+        session.add(booking)
+
+        # Log dell'evento
+        session.add(EventLog(
+            booking_id=booking.id,
+            actor_id=update.effective_user.id,
+            action="reassign",
+            details=f"to @{username}"
+        ))
+        session.commit()
+
+        await update.message.reply_text(f"Prenotazione #{booking.id} riassegnata a @{username}.")
+        await context.bot.send_message(
+            priest_id,
+            f"Ti è stata riassegnata la prenotazione #{booking.id}. Usa /mie_assegnazioni per i dettagli."
+        )
+    finally:
+        session.close()
 
 
 # ---- SACERDOTE: LISTA E COMPLETAMENTO ----
