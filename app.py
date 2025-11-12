@@ -805,13 +805,13 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if b.status == "assigned":
                 msgs.append(
                     f"⚠️ **#{b.id} [DA COMPLETARE]** - {b.sacrament.replace('_',' ')}\n"
-                    f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
+                    f"Contatto TG: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
                     f"Note: {b.notes or '-'}"
                 )
             else:
                 msgs.append(
                     f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')}\n"
-                    f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
+                    f"Contatto TG: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
                     f"Note: {b.notes or '-'}"
                 )
 
@@ -863,13 +863,13 @@ async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TY
             if b.status == "assigned":
                 msgs.append(
                     f"⚠️ **#{b.id} [DA COMPLETARE]** - {b.sacrament.replace('_',' ')}\n"
-                    f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
+                    f"Contatto TG: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
                     f"Note: {b.notes or '-'}"
                 )
             else:
                 msgs.append(
                     f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')}\n"
-                    f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
+                    f"Contatto TG: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
                     f"Note: {b.notes or '-'}"
                 )
 
@@ -963,77 +963,110 @@ async def check_sla(app):
         session.close()
 @role_required(is_director, "Solo la Direzione può usare questo comando.")
 async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    /lista_prenotazioni [filtro|priest_id]
-    - Senza parametri: mostra tutte le prenotazioni suddivise per stato + conteggi.
-    - Con un filtro di stato (pending, assigned, in_progress, completed, canceled): mostra solo quelle + conteggio.
-    - Con un numero (telegram_id): mostra le prenotazioni assegnate a quel sacerdote + conteggio.
-    """
     args = update.message.text.split()
+    filtro = args[1].lower() if len(args) == 2 else None
+
     session = SessionLocal()
     try:
-        if len(args) == 2:
-            filtro = args[1].lower()
+        bookings = []
+        titolo = "Riepilogo prenotazioni"
+
+        if filtro:
             # Caso: filtro per stato
             if filtro in STATUS:
-                bookings = session.query(Booking).filter(Booking.status == filtro).all()
-                total = len(bookings)
-                if not bookings:
-                    await update.message.reply_text(f"Nessuna prenotazione con stato '{filtro}'.")
-                    return
-                lines = [f"--- Prenotazioni {filtro.upper()} --- (Totale: {total})"]
-                for b in bookings:
-                    lines.append(
-                        f"#{b.id} - {b.sacrament.replace('_',' ')} | Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}"
-                    )
-                await update.message.reply_text("\n".join(lines))
-                return
-            # Caso: filtro per sacerdote (telegram_id)
+                bookings = session.query(Booking).filter(Booking.status == filtro).order_by(Booking.id.desc()).all()
+                titolo = f"Prenotazioni {filtro.upper()}"
+            else:
+                # Caso: filtro per sacerdote (telegram_id)
+                try:
+                    priest_id = int(filtro)
+                    assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
+                    bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
+                    titolo = f"Prenotazioni sacerdote {priest_id}"
+                except ValueError:
+                    # Caso: filtro per nick fedele
+                    bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{filtro}%")).order_by(Booking.id.desc()).all()
+                    titolo = f"Prenotazioni del fedele '{filtro}'"
+
+        else:
+            bookings = session.query(Booking).order_by(Booking.id.desc()).all()
+
+        await _send_paginated_bookings(update, bookings, titolo, filtro, page=1)
+
+    finally:
+        session.close()
+
+async def _send_paginated_bookings(update_or_query, bookings, titolo, filtro, page=1):
+    if not bookings:
+        msg = f"Nessuna prenotazione trovata per {titolo}."
+        if hasattr(update_or_query, "message"):
+            await update_or_query.message.reply_text(msg)
+        else:
+            await update_or_query.edit_message_text(msg)
+        return
+
+    per_page = 10
+    total_pages = (len(bookings) + per_page - 1) // per_page
+    start = (page - 1) * per_page
+    end = start + per_page
+    bookings_page = bookings[start:end]
+
+    lines = [f"--- {titolo} --- (Totale: {len(bookings)})"]
+    for b in bookings_page:
+        lines.append(
+            f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')} "
+            f"| Cliente TG: {b.client_telegram_id or '-'} "
+            f"| RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}"
+        )
+
+    text = "\n".join(lines) + f"\n\nPagina {page}/{total_pages}"
+
+    buttons = []
+    if page > 1:
+        buttons.append(InlineKeyboardButton("⬅️ Indietro", callback_data=f"bookings_page_{page-1}_{filtro or 'all'}"))
+    if page < total_pages:
+        buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"bookings_page_{page+1}_{filtro or 'all'}"))
+
+    kb = InlineKeyboardMarkup([buttons]) if buttons else None
+
+    if hasattr(update_or_query, "message"):
+        await update_or_query.message.reply_text(text, reply_markup=kb)
+    else:
+        await update_or_query.edit_message_text(text, reply_markup=kb)
+
+async def lista_prenotazioni_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data.split("_")
+    page = int(data[2])
+    filtro = data[3] if len(data) > 3 and data[3] != "all" else None
+
+    session = SessionLocal()
+    try:
+        bookings = []
+        titolo = "Riepilogo prenotazioni"
+
+        if filtro:
+            if filtro in STATUS:
+                bookings = session.query(Booking).filter(Booking.status == filtro).order_by(Booking.id.desc()).all()
+                titolo = f"Prenotazioni {filtro.upper()}"
             else:
                 try:
                     priest_id = int(filtro)
+                    assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
+                    bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
+                    titolo = f"Prenotazioni sacerdote {priest_id}"
                 except ValueError:
-                    await update.message.reply_text("Parametro non valido. Usa uno stato o un telegram_id numerico.")
-                    return
-                assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
-                total = len(assigns)
-                if not assigns:
-                    await update.message.reply_text(f"Nessuna prenotazione trovata per sacerdote {priest_id}.")
-                    return
-                msgs = [f"--- Prenotazioni sacerdote {priest_id} --- (Totale: {total})"]
-                for a in assigns:
-                    b = session.query(Booking).get(a.booking_id)
-                    if not b:
-                        continue
-                    msgs.append(
-                        f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')}\n"
-                        f"Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}\n"
-                        f"Note: {b.notes or '-'}"
-                    )
-                await update.message.reply_text("\n\n".join(msgs))
-                return
+                    bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{filtro}%")).order_by(Booking.id.desc()).all()
+                    titolo = f"Prenotazioni del fedele '{filtro}'"
         else:
-            # Caso: mostra tutte le prenotazioni suddivise per stato
-            bookings = session.query(Booking).all()
-            if not bookings:
-                await update.message.reply_text("Nessuna prenotazione trovata.")
-                return
-            grouped = {}
-            for b in bookings:
-                grouped.setdefault(b.status, []).append(b)
-            lines = ["--- Riepilogo prenotazioni ---"]
-            for status, items in grouped.items():
-                lines.append(f"{status.upper()}: {len(items)}")
-            lines.append("")  # spazio
-            for status, items in grouped.items():
-                lines.append(f"--- {status.upper()} ---")
-                for b in items:
-                    lines.append(
-                        f"#{b.id} - {b.sacrament.replace('_',' ')} | Cliente TG: {b.client_telegram_id or '-'} | RP: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}"
-                    )
-            await update.message.reply_text("\n".join(lines))
+            bookings = session.query(Booking).order_by(Booking.id.desc()).all()
+
+        await _send_paginated_bookings(query, bookings, titolo, filtro, page)
+
     finally:
         session.close()
+
 
 async def weekly_report(app):
     session = SessionLocal()
@@ -1125,7 +1158,7 @@ def build_application():
 
     # Callback per la paginazione delle assegnazioni
     app.add_handler(CallbackQueryHandler(mie_assegnazioni_page, pattern=r"^assign_page_\d+$"))
-
+    app.add_handler(CallbackQueryHandler(lista_prenotazioni_page, pattern=r"^bookings_page_\d+_.+$"))
     # Scheduler jobs
     scheduler = AsyncIOScheduler(timezone="UTC")
     scheduler.add_job(check_sla, "interval", hours=1, args=[app])
