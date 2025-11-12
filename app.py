@@ -799,15 +799,24 @@ def build_application():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_error_handler(on_error)
 
-
     # Client booking conversation
     conv_client = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
+            # scelta singolo/multiplo
             CHOOSE_MODE: [CallbackQueryHandler(choose_mode, pattern=r"^mode_")],
+            # scelta ruolo (quando l’utente ha più ruoli)
             CHOOSE_ROLE: [CallbackQueryHandler(choose_role, pattern=r"^role_")],
-            START_SACRAMENT: [CallbackQueryHandler(choose_sacrament, pattern=r"^sac_.*|cancel")],
+            # scelta sacramento
+            START_SACRAMENT: [
+                CallbackQueryHandler(choose_sacrament, pattern=r"^sac_.*|cancel"),
+                CallbackQueryHandler(multi_flow, pattern=r"^(add_more|go_nick)$"),
+            ],
+            # inserimento nick Minecraft
+            ENTER_NICK: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_nick)],
+            # inserimento note
             ENTER_NOTES: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_notes)],
+            # conferma finale
             CONFIRM_BOOKING: [CallbackQueryHandler(confirm_booking, pattern=r"^confirm|cancel")],
         },
         fallbacks=[CommandHandler("cancel", cancel_handler)],
