@@ -144,6 +144,9 @@ def confirm_keyboard():
 
 # ---- CLIENT FLOW ----
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        await update.message.reply_text("❌ Questo comando può essere usato solo in privato con il bot.")
+        return ConversationHandler.END
     user = update.effective_user
     user_id = user.id
     roles = []
@@ -314,9 +317,10 @@ async def enter_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sacramenti = ", ".join([s.replace("_", " ") for s in context.user_data.get("sacraments", [])])
     else:
         sacramenti = context.user_data.get("sacrament", "N/D").replace("_", " ")
-
+    nickname = context.user_data.get("nickname_mc", "N/D")
     await update.message.reply_text(
         f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nSei arrivato alla fine della prenotazione. Qui sotto è presente il resoconto delle informazioni scritte da te. Controlla che siano giuste e conferma la tua prenotazione.\n\n"
+        f"•Nickname minecraft: {nickname}\n"
         f"•Sacramento richiesto: {sacramenti}\n"
         f"•Note Aggiuntive: {notes or 'nessuna nota.'}",
         reply_markup=confirm_keyboard()
