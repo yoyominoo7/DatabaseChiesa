@@ -282,7 +282,7 @@ async def multi_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Seleziona un altro sacramento:", reply_markup=sacrament_keyboard())
         return START_SACRAMENT
     elif query.data == "go_nick":
-        context.user_data["sacrament"] = context.user_data.get("selected_sacrament", 
+        context.user_data["sacrament"] = context.user_data.get("selected_sacrament", "unknown")
         await query.edit_message_text("Ora inserisci il tuo nick Minecraft:")
         return ENTER_NICK
 
