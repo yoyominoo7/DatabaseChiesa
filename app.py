@@ -706,6 +706,7 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != DIRECTORS_GROUP_ID:
         await update.message.reply_text("❌ Questo comando può essere usato solo nel gruppo Direzione.")
         return
+
     args = update.message.text.split()
     if len(args) < 3:
         await update.message.reply_text("Uso: /riassegna <booking_id> <@username>")
@@ -722,7 +723,6 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = SessionLocal()
     try:
-        # Recupera l'ID del sacerdote dal DB
         priest = session.query(Priest).filter_by(username=username).first()
         if not priest:
             await update.message.reply_text("Username non valido o sacerdote non registrato.")
@@ -739,7 +739,13 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Prenotazione inesistente.")
             return
 
-        # 🔎 Controllo: se non è assegnata, avvisa
+        # 🔎 Blocco se la prenotazione è completata (o annullata)
+        if booking.status in ("completed", "cancelled"):
+            await update.message.reply_text(
+                f"❌ La prenotazione #{booking.id} è {booking.status.upper()} e non può essere riassegnata."
+            )
+            return
+
         existing_assign = session.query(Assignment).filter_by(booking_id=booking.id).first()
         if not existing_assign:
             await update.message.reply_text(f"La prenotazione #{booking.id} non è ancora stata assegnata. Usa /assegna.")
@@ -747,13 +753,12 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Aggiorna l'assegnazione
         existing_assign.priest_telegram_id = priest_id
-        existing_assign.priest_username = username 
+        existing_assign.priest_username = username
         existing_assign.assigned_by = update.effective_user.id
         booking.updated_at = datetime.now(timezone.utc)
         session.add(existing_assign)
         session.add(booking)
 
-        # Log dell'evento
         session.add(EventLog(
             booking_id=booking.id,
             actor_id=update.effective_user.id,
@@ -763,10 +768,15 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.commit()
 
         await update.message.reply_text(f"Prenotazione #{booking.id} riassegnata a @{username}.")
-        await context.bot.send_message(
-            priest_id,
-            f"Ti è stata riassegnata la prenotazione #{booking.id}. Usa /mie_assegnazioni per i dettagli."
-        )
+        try:
+            await context.bot.send_message(
+                priest_id,
+                f"Ti è stata riassegnata la prenotazione #{booking.id}. Usa /mie_assegnazioni per i dettagli."
+            )
+        except telegram.error.Forbidden:
+            await update.message.reply_text(
+                f"⚠️ Impossibile notificare @{username} in privato. Deve avviare il bot."
+            )
 
         # 🔎 Cancella eventuale job precedente
         for job in context.job_queue.get_jobs_by_name(f"notify_{booking.id}"):
@@ -775,12 +785,13 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Pianifica nuovo job di 48 ore
         context.job_queue.run_once(
             notify_uncompleted,
-            when=48*3600,  # 48 ore in secondi
+            when=48*3600,
             data={"booking_id": booking.id, "priest_id": priest_id, "username": username},
             name=f"notify_{booking.id}"
         )
     finally:
         session.close()
+
 
 
 async def notify_uncompleted(context: ContextTypes.DEFAULT_TYPE):
