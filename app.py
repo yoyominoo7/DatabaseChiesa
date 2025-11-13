@@ -145,7 +145,6 @@ def confirm_keyboard():
 # ---- CLIENT FLOW ----
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
-        await update.message.reply_text("❌ Questo comando può essere usato solo in privato con il bot.")
         return ConversationHandler.END
     user = update.effective_user
     user_id = user.id
@@ -424,22 +423,16 @@ async def priests_take(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.commit()
 
         await query.edit_message_text(query.message.text + "\n‼️La prenotazione è stata presa in carico da @" + (update.effective_user.username or str(priest_id)))
-        # Contatta cliente in privato (se presente)
-        if booking.client_telegram_id:
-            await context.bot.send_message(
-                booking.client_telegram_id,
-                "Ciao! Sono il sacerdote che ha preso in carico la tua richiesta. Scrivimi quando sei disponibile per il sacramento."
-            )
     finally:
         session.close()
 
 # ---- INGAME FLOW (SECRETARIES) ----
-@role_required(is_secretary, "Solo i segretari possono usare questo comando.")
+@role_required(is_secretary, "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nNon risulti essere un segretario, perciò non puoi eseguire il comando. Se pensi sia un errore contatta @LavatiScimmiaInfuocata.")
 async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
-        await update.message.reply_text("❌ Questo comando può essere usato solo in privato con il bot.")
+        await update.message.reply_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\n❌ Questo comando può essere usato solo in privato con il bot.")
         return ConversationHandler.END  # termina la conversazione
-    msg = await update.message.reply_text("Inserisci il contatto telegram del cliente:")
+    msg = await update.message.reply_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nPer iniziare la procedura di registrazione, inserisci la @ del fedele che ha prenotato:")
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_RP_NAME
 
@@ -455,7 +448,7 @@ async def ig_rp_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Inserisci nick Minecraft:"
+        text="𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBene! Adesso ti chiedo di inserire il nickname di minecraft del fedele (se si tratta di un matrimonio inserisci il nome dei due coniugi):"
     )
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_NICK
@@ -474,7 +467,7 @@ async def ig_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
                              one_time_keyboard=False, resize_keyboard=True)
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Seleziona uno o più sacramenti (scrivi 'fine' quando hai terminato):",
+        text="𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nSeleziona uno o più sacramenti (scrivi 'fine' quando hai terminato):",
         reply_markup=kb
     )
     context.user_data["last_prompt_id"] = msg.message_id
@@ -497,13 +490,13 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not context.user_data["sacraments"]:
             msg = await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="Non hai selezionato nessun sacramento. Riprova:"
+                text="𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nAttenzione,non hai selezionato nessun sacramento. Riprova:"
             )
             context.user_data["last_prompt_id"] = msg.message_id
             return IG_SACRAMENT
         msg = await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="Aggiungi note (oppure scrivi 'no'):"
+            text="𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\n Siamo arrivati quasi alla fine. Inserisci delle note aggiuntive (se non ci sono scrivi 'no'):"
         )
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_NOTES
@@ -511,7 +504,7 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if s not in SACRAMENTS:
         msg = await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="Sacramento non valido. Riprova:"
+            text="𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\n Il sacramento inserito non è valido. Riprova:"
         )
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_SACRAMENT
@@ -519,7 +512,7 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["sacraments"].append(s)
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Sacramento aggiunto. Seleziona un altro oppure scrivi 'fine':"
+        text="𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\n Il Sacramento è stato aggiunto con successo! Selezionane un altro oppure scrivi 'fine':"
     )
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_SACRAMENT
@@ -543,10 +536,10 @@ async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            f"Confermi?\nContatto Telegram: {context.user_data['rp_name']}\n"
-            f"Nick: {context.user_data['nickname_mc']}\n"
-            f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
-            f"Note: {notes or '-'}"
+            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nSei arrivato alla fine della registrazione. Qui sotto è presente il resoconto delle informazioni scritte da te. Controlla che siano giuste e conferma la tua registrazione.\n\n •Contatto Telegram: {context.user_data['rp_name']}\n"
+            f"•Nick: {context.user_data['nickname_mc']}\n"
+            f"•Sacramenti: {sacrament_display.replace('_',' ')}\n"
+            f"•Note: {notes or 'nessuna nota presente.'}"
         ),
         reply_markup=confirm_keyboard()
     )
@@ -557,14 +550,14 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "cancel":
-        await query.edit_message_text("Prenotazione annullata.")
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nLa prenotazione è stata annullata con successo! Se vuoi effettuarla di nuovo digita /prenota_ingame")
         return ConversationHandler.END
     if query.data != "confirm":
         return
 
     user_id = update.effective_user.id
     if not is_secretary(user_id):
-        await query.edit_message_text("Permesso negato.")
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nNon hai il permesso per eseguire questa azione.")
         return ConversationHandler.END
 
     session = SessionLocal()
@@ -594,21 +587,21 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Messaggio di conferma al segretario
         await query.edit_message_text(
-            f"Prenotazione in-game registrata con ID #{booking.id}.\n"
+            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\n✅La tua prenotazione è stata registrata con successo! (ID #{booking.id})\n\nQui sotto ti uscirà un resoconto delle informazioni inserite:\n\n"
             f"Contatto telegram: {booking.rp_name}\n"
             f"Nick: {booking.nickname_mc}\n"
             f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
-            f"Note: {booking.notes or '-'}"
+            f"Note: {booking.notes or 'nessuna nota presente.'}"
         )
 
         # Notifica alla Direzione con riepilogo completo
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
-            f"Nuova prenotazione in-game #{booking.id}\n"
+            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nE' presente una nuova prenotazione! #{booking.id}\n\n"
             f"Contatto Telegram: {booking.rp_name}\n"
             f"Nick: {booking.nickname_mc}\n"
             f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
-            f"Note: {booking.notes or '-'}"
+            f"Note: {booking.notes or 'Nessuna nota'}\n\nRicorda di verificare i campi inseriti e di assegnarla il prima possibile a un sacerdote."
         )
 
         return ConversationHandler.END
