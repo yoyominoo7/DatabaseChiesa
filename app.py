@@ -82,6 +82,7 @@ class Assignment(Base):
     id = Column(Integer, primary_key=True)
     booking_id = Column(Integer, ForeignKey("bookings.id"))
     priest_telegram_id = Column(BigInteger)
+    priest_username = Column(String, nullable=True)   # 👈 nuovo campo
     assigned_by = Column(BigInteger)
     assigned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     taken_at = Column(DateTime)
@@ -623,6 +624,7 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != DIRECTORS_GROUP_ID:
         await update.message.reply_text("❌ Questo comando può essere usato solo nel gruppo Direzione.")
         return
+
     args = update.message.text.split()
     if len(args) < 3:
         await update.message.reply_text("Uso: /assegna <booking_id> <@username>")
@@ -639,7 +641,6 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = SessionLocal()
     try:
-        # Recupera l'ID del sacerdote dal DB
         priest = session.query(Priest).filter_by(username=username).first()
         if not priest:
             await update.message.reply_text("Username non valido o sacerdote non registrato.")
@@ -656,24 +657,25 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Prenotazione inesistente.")
             return
 
-        # 🔎 Controllo: già assegnata?
         existing_assign = session.query(Assignment).filter_by(booking_id=booking.id).first()
         if booking.status == "assigned" or existing_assign:
             await update.message.reply_text(f"La prenotazione #{booking.id} è già stata assegnata.")
             return
 
-        # Procedi con l'assegnazione
+        # Aggiorna stato prenotazione
         booking.status = "assigned"
         booking.updated_at = datetime.now(timezone.utc)
         session.add(booking)
 
+        # Salva assegnazione includendo l'username del sacerdote
         assign = Assignment(
             booking_id=booking.id,
             priest_telegram_id=priest_id,
-            priest_username=username,
+            priest_username=username,  # <— assicurati che esista questa colonna
             assigned_by=update.effective_user.id,
         )
         session.add(assign)
+
         session.add(EventLog(
             booking_id=booking.id,
             actor_id=update.effective_user.id,
@@ -688,15 +690,16 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Ti è stata assegnata la prenotazione #{booking.id}. Usa /mie_assegnazioni per i dettagli."
         )
 
-        # Pianifica notifica dopo 48 ore se non completata
+        # Notifica dopo 48 ore se non completata
         context.job_queue.run_once(
             notify_uncompleted,
-            when=48*3600,  # 48 ore in secondi
+            when=48*3600,
             data={"booking_id": booking.id, "priest_id": priest_id, "username": username},
             name=f"notify_{booking.id}"
         )
     finally:
         session.close()
+
         
 @role_required(is_director, "Solo la Direzione può assegnare.")
 async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -744,6 +747,7 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Aggiorna l'assegnazione
         existing_assign.priest_telegram_id = priest_id
+        existing_assign.priest_username = username 
         existing_assign.assigned_by = update.effective_user.id
         booking.updated_at = datetime.now(timezone.utc)
         session.add(existing_assign)
@@ -1034,9 +1038,9 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
         msg = f"Nessuna prenotazione trovata per {titolo}."
-        if isinstance(target, Message):  # caso comando
+        if isinstance(target, Message):
             await target.reply_text(msg)
-        elif isinstance(target, CallbackQuery):  # caso callback
+        elif isinstance(target, CallbackQuery):
             await target.edit_message_text(msg)
         return
 
@@ -1048,25 +1052,23 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
 
     lines = [f"--- {titolo} --- (Totale: {len(bookings)})"]
 
-    # 🔎 Serve una sessione per recuperare Assignment
     session = SessionLocal()
     try:
         for b in bookings_page:
             assignment = session.query(Assignment).filter_by(booking_id=b.id).first()
-            priest_tag = f"@{assignment.priest_username}" if assignment and assignment.priest_username else "-"
+            priest_tag = f"@{assignment.priest_username}" if assignment and getattr(assignment, "priest_username", None) else "-"
 
-            # Contatto Telegram del segretario (salvato in rp_name)
-            secretary_tag = b.rp_name or "-"
+            # Tag del segretario che ha registrato la prenotazione
+            secretary_tag = f"@{b.secretary_username}" if getattr(b, "secretary_username", None) else "-"
 
-            # Orario (usa created_at se presente, altrimenti updated_at)
+            # Orario (preferisci created_at, fallback updated_at)
             if getattr(b, "created_at", None):
-                created_at = b.created_at.strftime("%d/%m/%Y %H:%M")
+                timestamp = b.created_at.strftime("%d/%m/%Y %H:%M")
             elif getattr(b, "updated_at", None):
-                created_at = b.updated_at.strftime("%d/%m/%Y %H:%M")
+                timestamp = b.updated_at.strftime("%d/%m/%Y %H:%M")
             else:
-                created_at = "-"
+                timestamp = "-"
 
-            # Costruzione dettagliata
             lines.append(
                 f"📌 Prenotazione #{b.id} [{b.status.upper()}]\n"
                 f"• Sacramento/i: {b.sacrament.replace('_',' ')}\n"
@@ -1074,7 +1076,7 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
                 f"• Contatto TG fedele: {b.rp_name or '-'}\n"
                 f"• Note: {b.notes or 'Nessuna'}\n"
                 f"• Registrata dal segretario: {secretary_tag}\n"
-                f"• Orario: {created_at}\n"
+                f"• Orario: {timestamp}\n"
                 f"• Assegnata a: {priest_tag}\n"
                 "-----------------------------"
             )
@@ -1091,10 +1093,11 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
 
     kb = InlineKeyboardMarkup([buttons]) if buttons else None
 
-    if isinstance(target, Message):  # arrivo da comando
+    if isinstance(target, Message):
         await target.reply_text(text, reply_markup=kb)
-    elif isinstance(target, CallbackQuery):  # arrivo da bottone
+    elif isinstance(target, CallbackQuery):
         await target.edit_message_text(text, reply_markup=kb)
+
 
 
 
