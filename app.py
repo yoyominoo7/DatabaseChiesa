@@ -210,14 +210,14 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = query.data
     if mode == "mode_single":
         context.user_data["multi"] = False
-        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nPerfetto, hai scelto di prenotare più sacramenti, il prossim passo è scegliere quale. Utilizza i bottoni qui sotto.")
-        await context.bot.send_message(query.message.chat_id, "Seleziona il sacramento:", reply_markup=sacrament_keyboard())
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nPerfetto, hai scelto di prenotare un singolo sacramento, il prossimo passo è scegliere quale.")
+        await context.bot.send_message(query.message.chat_id, "Utilizza i bottoni qui sotto per procedere:", reply_markup=sacrament_keyboard())
         return START_SACRAMENT
     elif mode == "mode_multi":
         context.user_data["multi"] = True
         context.user_data["sacraments"] = []
-        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nPerfetto, hai scelto di prenotare un singolo sacramento, il prossimo passo è scegliere quale. Utilizza i bottoni qui sotto per procedere:")
-        await context.bot.send_message(query.message.chat_id, "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\n Bene! Scegli il prossimo sacramento:", reply_markup=sacrament_keyboard())
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nPerfetto, hai scelto di prenotare più sacramenti, il prossimo passo è scegliere quali.")
+        await context.bot.send_message(query.message.chat_id, "Utilizza i bottoni qui sotto per procedere:", reply_markup=sacrament_keyboard())
         return START_SACRAMENT
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -248,7 +248,7 @@ async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "cancel":
-        await query.edit_message_text("Prenotazione annullata.")
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nLa prenotazione è stata annullata con successo! Se vuoi effettuarla di nuovo digita /start")
         return ConversationHandler.END
     if not query.data.startswith("sac_"):
         return
@@ -259,10 +259,10 @@ async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Chiedi se vuole aggiungere altri sacramenti o passare al nick
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("Aggiungi un altro sacramento", callback_data="add_more")],
-            [InlineKeyboardButton("Procedi al nick Minecraft", callback_data="go_nick")],
+            [InlineKeyboardButton("Prosegui con il prossimo passo", callback_data="go_nick")],
         ])
         await query.edit_message_text(
-            f"Hai scelto: {sacr.replace('_',' ')}.\nVuoi aggiungere un altro sacramento o procedere?",
+            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nHai scelto il sacramento {sacr.replace('_',' ')}.\nVuoi aggiungere un altro sacramento o procedere con il prossimo passo?",
             reply_markup=kb
         )
         return START_SACRAMENT
@@ -271,7 +271,7 @@ async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.delete_message()
         await context.bot.send_message(
             chat_id=query.message.chat_id,
-            text="Inserisci il tuo nick Minecraft:"
+            text="𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBene! Adesso ti chiedo di rispondere a questo messaggio con il tuo nickname di minecraft:"
         )
         return ENTER_NICK
 
@@ -279,18 +279,18 @@ async def multi_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "add_more":
-        await query.edit_message_text("Seleziona un altro sacramento:", reply_markup=sacrament_keyboard())
+        await query.edit_message_text("Bene! Scegli il prossimo sacramento:", reply_markup=sacrament_keyboard())
         return START_SACRAMENT
     elif query.data == "go_nick":
         context.user_data["sacrament"] = context.user_data.get("selected_sacrament", "unknown")
-        await query.edit_message_text("Ora inserisci il tuo nick Minecraft:")
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBene! Adesso ti chiedo di rispondere a questo messaggio con il tuo nickname di minecraft:")
         return ENTER_NICK
 
 async def enter_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nick = update.message.text.strip()
     context.user_data["nickname_mc"] = nick
     await update.message.delete()
-    await update.message.reply_text("Aggiungi eventuali note (oppure scrivi 'no'):")
+    await update.message.reply_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nVuoi aggiungere una particolare richiesta? inviala qui sotto. Se non vuoi aggiungere nulla, rispondi a questo messaggio con 'no':")
     return ENTER_NOTES
 
 
@@ -309,7 +309,7 @@ async def enter_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     await update.message.reply_text(
-        f"Confermi la prenotazione per: {context.user_data['sacrament'].replace('_',' ')}?\nNote: {notes or '-'}",
+        f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nSei arrivato alla fine della prenotazione. Qui sotto è presente il resoconto delle informazioni scritte da te. Controlla che siano giuste e conferma la tua prenotazione.\n\n•Sacramento richiesto:{context.user_data['sacrament'].replace('_',' ')}?\n•Note Aggiuntive: {notes or 'nessuna nota.'}",
         reply_markup=confirm_keyboard()
     )
     return CONFIRM_BOOKING
@@ -318,7 +318,7 @@ async def confirm_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "cancel":
-        await query.edit_message_text("Prenotazione annullata.")
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nLa prenotazione è stata annullata con successo! Se vuoi effettuarla di nuovo digita /start")
         return ConversationHandler.END
     if query.data != "confirm":
         return
@@ -358,16 +358,18 @@ async def confirm_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("Prendi in carico", callback_data=f"take_{booking.id}")],
         ])
         text = (
-            f"Nuova richiesta #{booking.id}\n"
-            f"Sacramento: {booking.sacrament.replace('_',' ')}\n"
-            f"Nick Minecraft: {booking.nickname_mc or '-'}\n"
-            f"Note: {booking.notes or '-'}\n"
-            f"Cliente: @{user.username or user.id}"
+            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\nNuova richiesta \n"
+            f"🛎 Driiinnn! È arrivata una nuova richiesta di prenotazione per effettuare un sacramento!\n"
+            f"•Richiesta effettuata da: '@{user.username or user.id}' (ID richiesta:#{booking.id})\n"
+            f"•Sacramento richiesto: {booking.sacrament.replace('_',' ')}\n"
+            f"•Nickname Minecraft: {booking.nickname_mc or 'non presente.'}\n"
+            f"•Note Aggiuntive: {booking.notes or 'non presente.'}\n\n"
+            f"✅ Verifica l’interesse del richiedente e la correttezza dei campi.\nSe è una richiesta meme ignoralo.Altrimenti, prendi in carico la prenotazione e contattalo in privato per completare la procedura."
         )
         await context.bot.send_message(PRIESTS_GROUP_ID, text, reply_markup=kb)
 
         await query.edit_message_text(
-            f"Prenotazione (ID #{booking.id}) registrata! Un sacerdote ti contatterà in privato."
+            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nLa tua prenotazione (ID #{booking.id}) è andata a buon fine! A breve un sacerdote ti contatterà in privato per effettuare il sacramento."
         )
 
         return ConversationHandler.END
@@ -408,7 +410,7 @@ async def priests_take(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.add(EventLog(booking_id=booking.id, actor_id=priest_id, action="take", details="priests_group"))
         session.commit()
 
-        await query.edit_message_text(query.message.text + "\nPreso in carico da @" + (update.effective_user.username or str(priest_id)))
+        await query.edit_message_text(query.message.text + "\n‼️La prenotazione è stata presa in carico da @" + (update.effective_user.username or str(priest_id)))
         # Contatta cliente in privato (se presente)
         if booking.client_telegram_id:
             await context.bot.send_message(
