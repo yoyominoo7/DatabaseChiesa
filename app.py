@@ -282,8 +282,11 @@ async def multi_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Bene! Scegli il prossimo sacramento:", reply_markup=sacrament_keyboard())
         return START_SACRAMENT
     elif query.data == "go_nick":
-        context.user_data["sacrament"] = context.user_data.get("selected_sacrament", "unknown")
-        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBene! Adesso ti chiedo di rispondere a questo messaggio con il tuo nickname di minecraft:")
+        if context.user_data.get("multi"):
+            context.user_data["sacrament"] = ",".join(context.user_data.get("sacraments", []))
+        await query.edit_message_text(
+            "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBene! Adesso ti chiedo di rispondere a questo messaggio con il tuo nickname di minecraft:"
+        )
         return ENTER_NICK
 
 async def enter_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -307,9 +310,15 @@ async def enter_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_to_message.delete()
         except Exception:
             pass
+    if context.user_data.get("multi"):
+        sacramenti = ", ".join([s.replace("_", " ") for s in context.user_data.get("sacraments", [])])
+    else:
+        sacramenti = context.user_data.get("sacrament", "N/D").replace("_", " ")
 
     await update.message.reply_text(
-        f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nSei arrivato alla fine della prenotazione. Qui sotto è presente il resoconto delle informazioni scritte da te. Controlla che siano giuste e conferma la tua prenotazione.\n\n•Sacramento richiesto:{context.user_data['sacrament'].replace('_',' ')}\n•Note Aggiuntive: {notes or 'nessuna nota.'}",
+        f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nSei arrivato alla fine della prenotazione. Qui sotto è presente il resoconto delle informazioni scritte da te. Controlla che siano giuste e conferma la tua prenotazione.\n\n"
+        f"•Sacramento richiesto: {sacramenti}\n"
+        f"•Note Aggiuntive: {notes or 'nessuna nota.'}",
         reply_markup=confirm_keyboard()
     )
     return CONFIRM_BOOKING
@@ -359,7 +368,7 @@ async def confirm_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
         text = (
             f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\n"
-            f"🛎 Driiinnn! È arrivata una nuova richiesta di prenotazione per effettuare un sacramento!\n"
+            f"🛎 Driiinnn! È arrivata una nuova richiesta di prenotazione per effettuare un sacramento!\n\n"
             f"•Richiesta effettuata da: '@{user.username or user.id}' (ID:#{booking.id})\n"
             f"•Sacramento richiesto: {booking.sacrament.replace('_',' ')}\n"
             f"•Nickname Minecraft: {booking.nickname_mc or 'non presente.'}\n"
