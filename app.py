@@ -116,7 +116,7 @@ def is_priest(user_id: int) -> bool:
 def is_director(user_id: int) -> bool:
     return user_id in DIRECTORS_IDS
 
-def role_required(check_func, msg="Permesso negato."):
+def role_required(check_func, msg="𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nHey, sembra che tu non abbia il permesso per effettuare questo comando. Se pensi sia un errore contatta @LavatiScimmiaInfuocata"):
     def decorator(func):
         async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id = update.effective_user.id
@@ -176,7 +176,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("Più sacramenti", callback_data="mode_multi")],
         ])
         await update.message.reply_text(
-            "Benvenuto! Vuoi prenotare un singolo sacramento o più sacramenti?",
+            "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Attraverso questo bot potrai richiedere di prenotare lo svolgimento di un sacramento direttamente da telegram.\n\nPer iniziare, scegli se vuoi prenotare un singolo sacramento oppure più sacramenti.\n\nRicorda, l'uso improprio del bot comporterà il ban permanente da esso. Se hai difficoltà o riscontri problemi contatta @LavatiScimmiaInfuocata.",
             reply_markup=kb
         )
         return CHOOSE_MODE
@@ -185,11 +185,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(roles) == 1:
         role = roles[0]
         if role == "sacerdote":
-            await update.message.reply_text("Benvenuto sacerdote! Usa i comandi per gestire le tue assegnazioni.")
+            await update.message.reply_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Questo bot ti aiuterà nelle tue mansioni da sacerdote. \n\n- /mie_assegnazioni\nConsidera questo bot come il tuo nuovo migliore amico, dovrai contattarlo quotidianamente per controllare i sacramenti che ti vengono assegnati. Quando avrai una nuova assegnazione ti verrà inviata una notifica.\n\n- /completa <id prenotazione>\nUna volta completata la prenotazione assegnata dovrai contrassegnarlo come completa attraverso questo comando.\n\n Se hai difficoltà o riscontri problemi contatta il Consiglio degli Anziani.")
         elif role == "segretario":
-            await update.message.reply_text("Benvenuto segretario! Usa /prenota_ingame per registrare una prenotazione in-game.")
+            await update.message.reply_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Questo bot ti aiuterà nelle tue mansioni da segretario.\n\n- /prenota_ingame\nConsidera questo bot come il tuo nuovo migliore amico, ogni volta che farai pagare un sacramento dovrai registrarlo attraverso questo comando che permetterà, alla fine, di assegnare lo svolgimento del sacramento a un sacerdote.\nMi raccomando non creare prenotazioni false o di prova, rischi di rompere il bot. \n\n Se hai difficoltà o riscontri problemi contatta il Consiglio degli Anziani.")
         elif role == "direzione":
-            await update.message.reply_text("Benvenuto Direttore! Usa /assegna o /lista_prenotazioni per gestire le prenotazioni.")
+            await update.message.reply_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Questo bot ti aiuterà nelle tue mansioni da Patriarca.\n\n- /assegna <id prenotazione> <@ del sacerdote>\nConsidera questo bot come il tuo nuovo migliore amico, ogni volta che arriverà una nuova prenotazione dovrai assegnarla a un sacerdote affinché esso la completi. Cerca di assegnare meno prenotazioni ai segretari e di più ai sacerdoti.\n\n- /riassegna <id prenotazione> <@ del sacerdote>\nHai sbagliato ad assegnare una prenotazione? Nessun problema, puoi riassegnarla tranquillamente.\n\n- /lista_prenotazioni <pending / assigned / completed / @ del sacerdote / nick del fedele>\nPending: potrai vedere tutte le prenotazioni in attesa di assegnazione.\nassigned: potrai vedere tutte le prenotazioni assegnate ai sacerdoti.\ncompleted: potrai vedere tutte le prenotazioni completate dai sacerdoti.\n@ del sacerdote: potrai vedere tutte le prenotazioni assegnate e completate di un sacerdote.\nnick del fedele: potrai vedere tutti i sacramenti prenotati dal fedele.\n\n Se hai difficoltà o riscontri problemi contatta Falco o yomino.")
         return ConversationHandler.END
 
     # Caso: più ruoli → scelta con bottoni (aggiungiamo anche 'fedele')
@@ -198,7 +198,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n"
-        "MESSAGGIO DI BENVENUTO\n"
         "\n"
         "Poiché sei un vip della chiesa, possiedi più ruoli! Però puoi usarne solo uno alla volta, scegli quale messaggio di start hai bisogno tra quelli indicati qui sotto:",
         reply_markup=InlineKeyboardMarkup(buttons)
@@ -211,14 +210,14 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = query.data
     if mode == "mode_single":
         context.user_data["multi"] = False
-        await query.edit_message_text("Hai scelto: singolo sacramento.\nSeleziona il sacramento:")
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nPerfetto, hai scelto di prenotare più sacramenti, il prossim passo è scegliere quale. Utilizza i bottoni qui sotto.")
         await context.bot.send_message(query.message.chat_id, "Seleziona il sacramento:", reply_markup=sacrament_keyboard())
         return START_SACRAMENT
     elif mode == "mode_multi":
         context.user_data["multi"] = True
         context.user_data["sacraments"] = []
-        await query.edit_message_text("Hai scelto: più sacramenti.\nSeleziona il primo sacramento:")
-        await context.bot.send_message(query.message.chat_id, "Seleziona il sacramento:", reply_markup=sacrament_keyboard())
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nPerfetto, hai scelto di prenotare un singolo sacramento, il prossimo passo è scegliere quale. Utilizza i bottoni qui sotto per procedere:")
+        await context.bot.send_message(query.message.chat_id, "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\n Bene! Scegli il prossimo sacramento:", reply_markup=sacrament_keyboard())
         return START_SACRAMENT
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -227,23 +226,18 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     role = query.data.replace("role_", "")
 
     if role == "sacerdote":
-        await query.edit_message_text("Benvenuto sacerdote! Usa i comandi per gestire le tue assegnazioni.")
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Questo bot ti aiuterà nelle tue mansioni da sacerdote. \n\n- /mie_assegnazioni\nConsidera questo bot come il tuo nuovo migliore amico, dovrai contattarlo quotidianamente per controllare i sacramenti che ti vengono assegnati. Quando avrai una nuova assegnazione ti verrà inviata una notifica.\n\n- /completa <id prenotazione>\nUna volta completata la prenotazione assegnata dovrai contrassegnarlo come completa attraverso questo comando.\n\n Se hai difficoltà o riscontri problemi contatta il Consiglio degli Anziani.")
         return ConversationHandler.END
     elif role == "segretario":
-        await query.edit_message_text("Benvenuto segretario! Usa /prenota_ingame per registrare una prenotazione in-game.")
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Questo bot ti aiuterà nelle tue mansioni da segretario.\n\n- /prenota_ingame\nConsidera questo bot come il tuo nuovo migliore amico, ogni volta che farai pagare un sacramento dovrai registrarlo attraverso questo comando che permetterà, alla fine, di assegnare lo svolgimento del sacramento a un sacerdote.\nMi raccomando non creare prenotazioni false o di prova, rischi di rompere il bot. \n\n Se hai difficoltà o riscontri problemi contatta il Consiglio degli Anziani.")
         return ConversationHandler.END
     elif role == "direzione":
-        await query.edit_message_text("Benvenuto Direttore! Usa /assegna o /lista_prenotazioni per gestire le prenotazioni.")
+        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Questo bot ti aiuterà nelle tue mansioni da Patriarca.\n\n- /assegna <id prenotazione> <@ del sacerdote>\nConsidera questo bot come il tuo nuovo migliore amico, ogni volta che arriverà una nuova prenotazione dovrai assegnarla a un sacerdote affinché esso la completi. Cerca di assegnare meno prenotazioni ai segretari e di più ai sacerdoti.\n\n- /riassegna <id prenotazione> <@ del sacerdote>\nHai sbagliato ad assegnare una prenotazione? Nessun problema, puoi riassegnarla tranquillamente.\n\n- /lista_prenotazioni <pending / assigned / completed / @ del sacerdote / nick del fedele>\nPending: potrai vedere tutte le prenotazioni in attesa di assegnazione.\nassigned: potrai vedere tutte le prenotazioni assegnate ai sacerdoti.\ncompleted: potrai vedere tutte le prenotazioni completate dai sacerdoti.\n@ del sacerdote: potrai vedere tutte le prenotazioni assegnate e completate di un sacerdote.\nnick del fedele: potrai vedere tutti i sacramenti prenotati dal fedele.\n\n Se hai difficoltà o riscontri problemi contatta Falco o yomino.")
         return ConversationHandler.END
     elif role == "fedele":
         # Flusso standard da fedele
         await query.edit_message_text(
-            "Benvenuto! Scegli il sacramento che desideri prenotare. Puoi aggiungere note in seguito.",
-            
-        )
-        await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text="Seleziona il sacramento:",
+            "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Attraverso questo bot potrai richiedere di prenotare lo svolgimento di un sacramento direttamente da telegram.\n\nPer iniziare, scegli quale sacramento vuoi prenotare.\n\nRicorda, l'uso improprio del bot comporterà il ban permanente da esso. Se hai difficoltà o riscontri problemi contatta @LavatiScimmiaInfuocata.",,
             reply_markup=sacrament_keyboard()
         )
         # Qui ritorni lo stato iniziale della conversazione
