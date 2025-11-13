@@ -670,6 +670,7 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         assign = Assignment(
             booking_id=booking.id,
             priest_telegram_id=priest_id,
+            priest_username=username,
             assigned_by=update.effective_user.id,
         )
         session.add(assign)
@@ -1046,11 +1047,39 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     bookings_page = bookings[start:end]
 
     lines = [f"--- {titolo} --- (Totale: {len(bookings)})"]
-    for b in bookings_page:
-        lines.append(
-            f"#{b.id} [{b.status}] - {b.sacrament.replace('_',' ')} "
-            f"| Contatto TG: {b.rp_name or '-'} | Nick: {b.nickname_mc or '-'}"
-        )
+
+    # 🔎 Serve una sessione per recuperare Assignment
+    session = SessionLocal()
+    try:
+        for b in bookings_page:
+            assignment = session.query(Assignment).filter_by(booking_id=b.id).first()
+            priest_tag = f"@{assignment.priest_username}" if assignment and assignment.priest_username else "-"
+
+            # Contatto Telegram del segretario (salvato in rp_name)
+            secretary_tag = b.rp_name or "-"
+
+            # Orario (usa created_at se presente, altrimenti updated_at)
+            if getattr(b, "created_at", None):
+                created_at = b.created_at.strftime("%d/%m/%Y %H:%M")
+            elif getattr(b, "updated_at", None):
+                created_at = b.updated_at.strftime("%d/%m/%Y %H:%M")
+            else:
+                created_at = "-"
+
+            # Costruzione dettagliata
+            lines.append(
+                f"📌 Prenotazione #{b.id} [{b.status.upper()}]\n"
+                f"• Sacramento/i: {b.sacrament.replace('_',' ')}\n"
+                f"• Nick Minecraft: {b.nickname_mc or '-'}\n"
+                f"• Contatto TG fedele: {b.rp_name or '-'}\n"
+                f"• Note: {b.notes or 'Nessuna'}\n"
+                f"• Registrata dal segretario: {secretary_tag}\n"
+                f"• Orario: {created_at}\n"
+                f"• Assegnata a: {priest_tag}\n"
+                "-----------------------------"
+            )
+    finally:
+        session.close()
 
     text = "\n".join(lines) + f"\n\nPagina {page}/{total_pages}"
 
@@ -1062,11 +1091,11 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
 
     kb = InlineKeyboardMarkup([buttons]) if buttons else None
 
-    # 🔎 Distinzione chiara
     if isinstance(target, Message):  # arrivo da comando
         await target.reply_text(text, reply_markup=kb)
     elif isinstance(target, CallbackQuery):  # arrivo da bottone
         await target.edit_message_text(text, reply_markup=kb)
+
 
 
 
