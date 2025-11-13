@@ -237,7 +237,7 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif role == "fedele":
         # Flusso standard da fedele
         await query.edit_message_text(
-            "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Attraverso questo bot potrai richiedere di prenotare lo svolgimento di un sacramento direttamente da telegram.\n\nPer iniziare, scegli quale sacramento vuoi prenotare.\n\nRicorda, l'uso improprio del bot comporterà il ban permanente da esso. Se hai difficoltà o riscontri problemi contatta @LavatiScimmiaInfuocata.",,
+            "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nBenvenuto nel bot ufficiale del Culto di Poseidone! Attraverso questo bot potrai richiedere di prenotare lo svolgimento di un sacramento direttamente da telegram.\n\nPer iniziare, scegli quale sacramento vuoi prenotare.\n\nRicorda, l'uso improprio del bot comporterà il ban permanente da esso. Se hai difficoltà o riscontri problemi contatta @LavatiScimmiaInfuocata.",
             reply_markup=sacrament_keyboard()
         )
         # Qui ritorni lo stato iniziale della conversazione
