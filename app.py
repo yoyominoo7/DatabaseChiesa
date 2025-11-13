@@ -1,8 +1,7 @@
 import os
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, BigInteger
-from datetime import datetime, timezone
 
 from telegram import (
     Update,
@@ -550,14 +549,19 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "cancel":
-        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nLa prenotazione è stata annullata con successo! Se vuoi effettuarla di nuovo digita /prenota_ingame")
+        await query.edit_message_text(
+            "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nLa prenotazione è stata annullata con successo! Se vuoi effettuarla di nuovo digita /prenota_ingame"
+        )
         return ConversationHandler.END
     if query.data != "confirm":
         return
 
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
     if not is_secretary(user_id):
-        await query.edit_message_text("𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nNon hai il permesso per eseguire questa azione.")
+        await query.edit_message_text(
+            "𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nNon hai il permesso per eseguire questa azione."
+        )
         return ConversationHandler.END
 
     session = SessionLocal()
@@ -594,6 +598,9 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Note: {booking.notes or 'nessuna nota presente.'}"
         )
 
+        # 🔎 Recupera il tag del segretario
+        secretary_tag = f"@{user.username}" if user.username else f"ID:{user.id}"
+
         # Notifica alla Direzione con riepilogo completo
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
@@ -601,7 +608,9 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Contatto Telegram: {booking.rp_name}\n"
             f"Nick: {booking.nickname_mc}\n"
             f"Sacramenti: {sacrament_display.replace('_',' ')}\n"
-            f"Note: {booking.notes or 'Nessuna nota'}\n\nRicorda di verificare i campi inseriti e di assegnarla il prima possibile a un sacerdote."
+            f"Note: {booking.notes or 'Nessuna nota'}\n\n"
+            f"📌 Prenotazione registrata dal segretario: {secretary_tag}\n\n"
+            f"Ricorda di verificare i campi inseriti e di assegnarla il prima possibile a un sacerdote."
         )
 
         return ConversationHandler.END
@@ -1099,26 +1108,73 @@ async def weekly_report(app):
     session = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
+        # Inizio settimana (lunedì)
         start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        # Fine settimana (domenica)
+        end = start + timedelta(days=7)
+
+        # Prenotazioni completate nella settimana
         completed = session.query(Booking).filter(
             Booking.status == "completed",
-            Booking.updated_at >= start
+            Booking.updated_at >= start,
+            Booking.updated_at < end
         ).all()
+
         total = len(completed)
+
+        # Classifica per sacerdote
         per_priest = {}
         for b in completed:
             a = session.query(Assignment).filter(Assignment.booking_id == b.id).first()
             pid = a.priest_telegram_id if a else "N/A"
             per_priest[pid] = per_priest.get(pid, 0) + 1
-        lines = [f"Report settimanale (da {start.date()}):"]
-        lines.append(f"- Totale sacramenti completati: {total}")
-        for pid, num in sorted(per_priest.items(), key=lambda x: x[1], reverse=True):
-            lines.append(f"- Sacerdote {pid}: {num}")
-        open_items = session.query(Booking).filter(Booking.status.in_(["pending","assigned","in_progress"])).count()
-        lines.append(f"- Prenotazioni ancora aperte: {open_items}")
+
+        # Conteggio per sacramento
+        per_sacrament = {}
+        for b in completed:
+            if b.sacrament:
+                # Se multipli, separa con virgola
+                sac_list = b.sacrament.split(",")
+                for sac in sac_list:
+                    sac = sac.strip()
+                    per_sacrament[sac] = per_sacrament.get(sac, 0) + 1
+
+        # Prenotazioni ancora aperte
+        open_items = session.query(Booking).filter(
+            Booking.status.in_(["pending", "assigned", "in_progress"])
+        ).count()
+
+        # Costruzione messaggio
+        lines = [
+            f"📊 Report settimanale",
+            f"Periodo: {start.date()} ➝ {end.date()}",
+            f"Totale sacramenti completati: {total}",
+            "",
+            "🏆 Classifica sacerdoti:"
+        ]
+        if per_priest:
+            for pid, num in sorted(per_priest.items(), key=lambda x: x[1], reverse=True):
+                lines.append(f"- Sacerdote {pid}: {num}")
+        else:
+            lines.append("Nessun sacramento completato dai sacerdoti questa settimana.")
+
+        lines.append("")
+        lines.append("✝️ Dettaglio per sacramento:")
+        if per_sacrament:
+            for sac, num in per_sacrament.items():
+                lines.append(f"- {sac.replace('_',' ')}: {num}")
+        else:
+            lines.append("Nessun sacramento completato questa settimana.")
+
+        lines.append("")
+        lines.append(f"📌 Prenotazioni ancora aperte: {open_items}")
+
+        # Invio al gruppo direzione
         await app.bot.send_message(DIRECTORS_GROUP_ID, "\n".join(lines))
+
     finally:
         session.close()
+
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.exception("Unhandled error", exc_info=context.error)
     if update and update.effective_message:

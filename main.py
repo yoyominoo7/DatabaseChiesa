@@ -1,7 +1,9 @@
 import os
 import threading
 from flask import Flask
+from datetime import time
 from app import build_application   # importa la funzione dal tuo app.py
+from app import weekly_report  # importa la funzione weekly_report
 
 # --- Flask web server ---
 flask_app = Flask(__name__)
@@ -15,14 +17,24 @@ def run_flask():
     # IMPORTANTE: disattiva il reloader per evitare doppie istanze del bot
     flask_app.run(host="0.0.0.0", port=port, use_reloader=False)
 
-# --- Avvio bot ---
-def run_bot():
-    app = build_application()
-    # Avvia il polling, eliminando eventuali update pendenti
-    app.run_polling(drop_pending_updates=True)
+def schedule_jobs(application):
+    # Pianifica il job settimanale: ogni lunedì alle 9:00
+    application.job_queue.run_daily(
+        weekly_report,              # funzione da eseguire
+        time=time(hour=9, minute=0),# orario
+        days=(0,),                  # 0 = lunedì
+        name="weekly_report_job"
+    )
 
 if __name__ == "__main__":
     # Avvia Flask in un thread separato
     threading.Thread(target=run_flask, daemon=True).start()
-    # Avvia il bot
-    run_bot()
+
+    # Costruisci l'applicazione Telegram
+    app = build_application()
+
+    # Pianifica i job settimanali
+    schedule_jobs(app)
+
+    # Avvia il bot (elimina eventuali update pendenti)
+    app.run_polling(drop_pending_updates=True)
