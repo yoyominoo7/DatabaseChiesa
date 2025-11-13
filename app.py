@@ -309,7 +309,7 @@ async def enter_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     await update.message.reply_text(
-        f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nSei arrivato alla fine della prenotazione. Qui sotto è presente il resoconto delle informazioni scritte da te. Controlla che siano giuste e conferma la tua prenotazione.\n\n•Sacramento richiesto:{context.user_data['sacrament'].replace('_',' ')}?\n•Note Aggiuntive: {notes or 'nessuna nota.'}",
+        f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\nSei arrivato alla fine della prenotazione. Qui sotto è presente il resoconto delle informazioni scritte da te. Controlla che siano giuste e conferma la tua prenotazione.\n\n•Sacramento richiesto:{context.user_data['sacrament'].replace('_',' ')}\n•Note Aggiuntive: {notes or 'nessuna nota.'}",
         reply_markup=confirm_keyboard()
     )
     return CONFIRM_BOOKING
@@ -358,9 +358,9 @@ async def confirm_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("Prendi in carico", callback_data=f"take_{booking.id}")],
         ])
         text = (
-            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\nNuova richiesta \n"
+            f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄\n\n"
             f"🛎 Driiinnn! È arrivata una nuova richiesta di prenotazione per effettuare un sacramento!\n"
-            f"•Richiesta effettuata da: '@{user.username or user.id}' (ID richiesta:#{booking.id})\n"
+            f"•Richiesta effettuata da: '@{user.username or user.id}' (ID:#{booking.id})\n"
             f"•Sacramento richiesto: {booking.sacrament.replace('_',' ')}\n"
             f"•Nickname Minecraft: {booking.nickname_mc or 'non presente.'}\n"
             f"•Note Aggiuntive: {booking.notes or 'non presente.'}\n\n"
@@ -423,6 +423,9 @@ async def priests_take(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---- INGAME FLOW (SECRETARIES) ----
 @role_required(is_secretary, "Solo i segretari possono usare questo comando.")
 async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        await update.message.reply_text("❌ Questo comando può essere usato solo in privato con il bot.")
+        return ConversationHandler.END  # termina la conversazione
     msg = await update.message.reply_text("Inserisci il contatto telegram del cliente:")
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_RP_NAME
@@ -602,7 +605,9 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---- DIREZIONE: ASSEGNAZIONE ----
 @role_required(is_director, "Solo la Direzione può assegnare.")
 async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # /assegna <booking_id> <@username>
+    if update.effective_chat.id != DIRECTORS_GROUP_ID:
+        await update.message.reply_text("❌ Questo comando può essere usato solo nel gruppo Direzione.")
+        return
     args = update.message.text.split()
     if len(args) < 3:
         await update.message.reply_text("Uso: /assegna <booking_id> <@username>")
@@ -679,7 +684,9 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
 @role_required(is_director, "Solo la Direzione può assegnare.")
 async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # /riassegna <booking_id> <@username>
+    if update.effective_chat.id != DIRECTORS_GROUP_ID:
+        await update.message.reply_text("❌ Questo comando può essere usato solo nel gruppo Direzione.")
+        return
     args = update.message.text.split()
     if len(args) < 3:
         await update.message.reply_text("Uso: /riassegna <booking_id> <@username>")
@@ -777,6 +784,9 @@ async def notify_uncompleted(context: ContextTypes.DEFAULT_TYPE):
 # ---- SACERDOTE: LISTA E COMPLETAMENTO ----
 @role_required(is_priest, "Solo i sacerdoti possono visualizzare le assegnazioni.")
 async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        await update.message.reply_text("❌ Questo comando può essere usato solo in privato con il bot.")
+        return
     priest_id = update.effective_user.id
     session = SessionLocal()
     try:
@@ -894,7 +904,9 @@ async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TY
 
 @role_required(is_priest, "Solo i sacerdoti possono completare.")
 async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # /completa <booking_id>
+    if update.effective_chat.type != "private":
+        await update.message.reply_text("❌ Questo comando può essere usato solo in privato con il bot.")
+        return
     args = update.message.text.split()
     if len(args) != 2:
         await update.message.reply_text("Uso: /completa <booking_id>")
@@ -966,6 +978,9 @@ async def check_sla(app):
         session.close()
 @role_required(is_director, "Solo la Direzione può usare questo comando.")
 async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != DIRECTORS_GROUP_ID:
+        await update.message.reply_text("❌ Questo comando può essere usato solo nel gruppo Direzione.")
+        return
     args = update.message.text.split()
     filtro = args[1].lower() if len(args) == 2 else None
 
