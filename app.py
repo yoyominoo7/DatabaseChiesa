@@ -1012,7 +1012,31 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if update.effective_chat.id != DIRECTORS_GROUP_ID:
         await update.message.reply_text("❌ Questo comando può essere usato solo nel gruppo Direzione.")
         return
+
     args = update.message.text.split()
+
+    # 🔎 Caso rimozione con conferma
+    if len(args) >= 3 and args[1].lower() == "rimuovi":
+        try:
+            booking_ids = [int(x) for x in args[2:]]
+        except ValueError:
+            await update.message.reply_text("❌ Devi specificare solo ID numerici validi.")
+            return
+
+        # Messaggio di conferma
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Conferma", callback_data=f"confirm_remove_{','.join(map(str, booking_ids))}"),
+                InlineKeyboardButton("❌ Annulla", callback_data="cancel_remove")
+            ]
+        ])
+        await update.message.reply_text(
+            f"⚠️ Vuoi davvero rimuovere le prenotazioni: {', '.join(map(str, booking_ids))}?",
+            reply_markup=kb
+        )
+        return
+
+    # 🔎 Caso normale: visualizzazione lista
     filtro = args[1].lower() if len(args) == 2 else None
 
     session = SessionLocal()
@@ -1021,28 +1045,62 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
         titolo = "Riepilogo prenotazioni"
 
         if filtro:
-            # Caso: filtro per stato
             if filtro in STATUS:
                 bookings = session.query(Booking).filter(Booking.status == filtro).order_by(Booking.id.desc()).all()
                 titolo = f"Prenotazioni {filtro.upper()}"
             else:
-                # Caso: filtro per sacerdote (telegram_id)
                 try:
                     priest_id = int(filtro)
                     assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
                     bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
                     titolo = f"Prenotazioni sacerdote {priest_id}"
                 except ValueError:
-                    # Caso: filtro per nick fedele
                     bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{filtro}%")).order_by(Booking.id.desc()).all()
                     titolo = f"Prenotazioni del fedele '{filtro}'"
-
         else:
             bookings = session.query(Booking).order_by(Booking.id.desc()).all()
 
-        # Primo messaggio → passo direttamente update.message
         await _send_paginated_bookings(update.message, bookings, titolo, filtro, page=1)
+    finally:
+        session.close()
 
+
+# 🔎 Callback per conferma/annulla
+async def handle_remove_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+    session = SessionLocal()
+    try:
+        if data.startswith("confirm_remove_"):
+            ids_str = data.replace("confirm_remove_", "")
+            booking_ids = [int(x) for x in ids_str.split(",")]
+
+            removed, not_found = [], []
+            for booking_id in booking_ids:
+                booking = session.query(Booking).get(booking_id)
+                if not booking:
+                    not_found.append(booking_id)
+                    continue
+
+                session.query(Assignment).filter_by(booking_id=booking.id).delete()
+                session.query(EventLog).filter_by(booking_id=booking.id).delete()
+                session.delete(booking)
+                removed.append(booking_id)
+
+            session.commit()
+
+            msg_parts = []
+            if removed:
+                msg_parts.append(f"✅ Prenotazioni rimosse: {', '.join(map(str, removed))}")
+            if not_found:
+                msg_parts.append(f"❌ Non trovate: {', '.join(map(str, not_found))}")
+
+            await query.edit_message_text("\n".join(msg_parts) if msg_parts else "Nessuna prenotazione rimossa.")
+
+        elif data == "cancel_remove":
+            await query.edit_message_text("❌ Rimozione annullata.")
     finally:
         session.close()
 
@@ -1110,9 +1168,6 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
         await target.edit_message_text(text, reply_markup=kb)
 
 
-
-
-
 async def lista_prenotazioni_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1146,7 +1201,6 @@ async def lista_prenotazioni_page(update: Update, context: ContextTypes.DEFAULT_
 
     finally:
         session.close()
-
 async def weekly_report(app):
     session = SessionLocal()
     try:
@@ -1277,6 +1331,7 @@ def build_application():
     app.add_handler(CommandHandler("assegna", assegna))
     app.add_handler(CommandHandler("riassegna", riassegna))   # <--- aggiunto
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
+    app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern="^(confirm_remove_|cancel_remove)"))
 
     # Sacerdoti
     app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
