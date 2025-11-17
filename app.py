@@ -10,6 +10,8 @@ from telegram import (
     ReplyKeyboardMarkup,
     KeyboardButton,
     Message,
+    BotCommand,
+    BotCommandScopeChatMember,
     CallbackQuery,
 )
 from telegram.ext import (
@@ -1462,9 +1464,41 @@ async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.exception("Unhandled error", exc_info=context.error)
     if update and update.effective_message:
         await update.effective_message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Si è verificato un **errore**.\n\n➡️ Riprova tra poco.",
+            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Si è verificato un **errore**.\n\n➡️ Sei pregato di segnalarlo a @LavatiScimmiaInfuocata.",
             parse_mode="Markdown"
         )
+async def set_role_commands(app, chat_id: int, user_id: int, roles: list[str]):
+    commands = []
+
+    if "sacerdote" in roles:
+        commands += [
+            BotCommand("mie_assegnazioni", "Mostra le tue assegnazioni"),
+            BotCommand("completa", "Completa una prenotazione"),
+        ]
+    if "segretario" in roles:
+        commands += [
+            BotCommand("prenota_ingame", "Registra un sacramento pagato"),
+        ]
+    if "direzione" in roles:
+        commands += [
+            BotCommand("assegna", "Assegna una prenotazione a un sacerdote"),
+            BotCommand("riassegna", "Riassegna una prenotazione"),
+            BotCommand("lista_prenotazioni", "Visualizza le prenotazioni"),
+        ]
+    if "fedele" in roles:
+        commands += [
+            BotCommand("start", "Prenota un sacramento"),
+        ]
+
+    # Rimuovi eventuali duplicati
+    seen = set()
+    commands = [c for c in commands if not (c.command in seen or seen.add(c.command))]
+
+    # Imposta i comandi per quell’utente in quel gruppo
+    await app.bot.set_my_commands(
+        commands=commands,
+        scope=BotCommandScopeChatMember(chat_id=chat_id, user_id=user_id)
+    )
 
 
 # ---- BUILD APPLICATION ----
