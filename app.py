@@ -76,6 +76,7 @@ class Booking(Base):
     sacrament = Column(String, nullable=False)
     notes = Column(String)
     status = Column(String, nullable=False, default="pending")
+    secretary_username = user.username or f"ID:{user.id}"   
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -668,6 +669,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sacrament=sacrament_display,
             notes=context.user_data["notes"],
             status="pending",
+            secretary_username=user.username or f"ID:{user.id}"   # 👈 aggiunto
         )
         session.add(booking)
         session.commit()
@@ -1312,9 +1314,9 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     try:
         for b in bookings_page:
             assignment = session.query(Assignment).filter_by(booking_id=b.id).first()
-            priest_tag = f"@{assignment.priest_username}" if assignment and getattr(assignment, "priest_username", None) else "-"
+            priest_tag = f"@{assignment.priest_username}" if assignment and getattr(assignment, "priest_username", None) else "Nessuno."
 
-            secretary_tag = f"@{b.secretary_username}" if getattr(b, "secretary_username", None) else "-"
+            secretary_tag = f"@{b.secretary_username}" if getattr(b, "secretary_username", None) else "Nessun contatto presente."
 
             if getattr(b, "created_at", None):
                 timestamp = b.created_at.strftime("%d/%m/%Y %H:%M")
@@ -1467,38 +1469,6 @@ async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Si è verificato un **errore**.\n\n➡️ Sei pregato di segnalarlo a @LavatiScimmiaInfuocata.",
             parse_mode="Markdown"
         )
-async def set_role_commands(app, chat_id: int, user_id: int, roles: list[str]):
-    commands = []
-
-    if "sacerdote" in roles:
-        commands += [
-            BotCommand("mie_assegnazioni", "Mostra le tue assegnazioni"),
-            BotCommand("completa", "Completa una prenotazione"),
-        ]
-    if "segretario" in roles:
-        commands += [
-            BotCommand("prenota_ingame", "Registra un sacramento pagato"),
-        ]
-    if "direzione" in roles:
-        commands += [
-            BotCommand("assegna", "Assegna una prenotazione a un sacerdote"),
-            BotCommand("riassegna", "Riassegna una prenotazione"),
-            BotCommand("lista_prenotazioni", "Visualizza le prenotazioni"),
-        ]
-    if "fedele" in roles:
-        commands += [
-            BotCommand("start", "Prenota un sacramento"),
-        ]
-
-    # Rimuovi eventuali duplicati
-    seen = set()
-    commands = [c for c in commands if not (c.command in seen or seen.add(c.command))]
-
-    # Imposta i comandi per quell’utente in quel gruppo
-    await app.bot.set_my_commands(
-        commands=commands,
-        scope=BotCommandScopeChatMember(chat_id=chat_id, user_id=user_id)
-    )
 
 
 # ---- BUILD APPLICATION ----
