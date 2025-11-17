@@ -68,6 +68,7 @@ class User(Base):
 
 class Booking(Base):
     __tablename__ = "bookings"
+
     id = Column(Integer, primary_key=True)
     source = Column(String, nullable=False)
     client_telegram_id = Column(BigInteger)
@@ -76,7 +77,7 @@ class Booking(Base):
     sacrament = Column(String, nullable=False)
     notes = Column(String)
     status = Column(String, nullable=False, default="pending")
-    secretary_username = user.username or f"ID:{user.id}"   
+    secretary_username = Column(String, nullable=True)   # 👈 solo colonna
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
