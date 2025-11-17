@@ -132,9 +132,77 @@ def role_required(check_func, msg="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒�
     return decorator
 
 # ---- CONVERSATION STATES ----
-CHOOSE_MODE, CHOOSE_ROLE, START_SACRAMENT, ENTER_NICK, ENTER_NOTES, CONFIRM_BOOKING = range(6)
 IG_RP_NAME, IG_NICK, IG_SACRAMENT, IG_NOTES, IG_CONFIRM = range(5)
 
+# ---- START (solo benvenuto, senza prenotazioni dei fedeli) ----
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return ConversationHandler.END
+
+    user = update.effective_user
+    user_id = user.id
+
+    roles = []
+    if is_priest(user_id):
+        roles.append("sacerdote")
+    if is_secretary(user_id):
+        roles.append("segretario")
+    if is_director(user_id):
+        roles.append("direzione")
+
+    # Nessun ruolo
+    if not roles:
+        await update.message.reply_text(
+            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Non risulti avere un ruolo valido per usare questo bot.",
+            parse_mode="Markdown"
+        )
+        return ConversationHandler.END
+
+    # Un solo ruolo → messaggio diretto
+    if len(roles) == 1:
+        role = roles[0]
+        await _send_role_welcome(update.message, role)
+        return ConversationHandler.END
+
+    # Più ruoli → scelta con bottoni (senza opzione "fedele")
+    buttons = [[InlineKeyboardButton(r.capitalize(), callback_data=f"role_{r}")] for r in roles]
+    await update.message.reply_text(
+        "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🌟 Hai più ruoli. Scegli il **messaggio di benvenuto** che ti serve:",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="Markdown"
+    )
+    return ConversationHandler.END
+
+
+async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    role = query.data.replace("role_", "")
+    # Mostra il messaggio corrispondente al ruolo selezionato
+    await _send_role_welcome(query.message, role)
+
+
+async def _send_role_welcome(target_message: Message, role: str):
+    if role == "sacerdote":
+        await target_message.reply_text(
+            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Benvenuto, **sacerdote**.\n\n📜 Comandi:\n- `/mie_assegnazioni`\n- `/completa <id>`",
+            parse_mode="Markdown"
+        )
+    elif role == "segretario":
+        await target_message.reply_text(
+            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📖 Benvenuto, **segretario**.\n\n📜 Comandi:\n- `/prenota_ingame`",
+            parse_mode="Markdown"
+        )
+    elif role == "direzione":
+        await target_message.reply_text(
+            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n👑 Benvenuto, **Patriarca**.\n\n📜 Comandi:\n- `/assegna <id> <@sacerdote>`\n- `/riassegna <id> <@sacerdote>`\n- `/lista_prenotazioni <filtro>`",
+            parse_mode="Markdown"
+        )
+    else:
+        await target_message.reply_text(
+            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Ruolo non riconosciuto.",
+            parse_mode="Markdown"
+        )
 
 def sacrament_keyboard():
     buttons = [[InlineKeyboardButton(s.title().replace("_", " "), callback_data=f"sac_{s}")] for s in SACRAMENTS]
@@ -146,356 +214,6 @@ def confirm_keyboard():
         [InlineKeyboardButton("✅ Conferma", callback_data="confirm")],
         [InlineKeyboardButton("❌ Annulla", callback_data="cancel")],
     ])
-
-# ---- CLIENT FLOW ----
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != "private":
-        return ConversationHandler.END
-    user = update.effective_user
-    user_id = user.id
-    roles = []
-
-    # --- Registrazione automatica sacerdote ---
-    if is_priest(user_id):
-        session = SessionLocal()
-        try:
-            priest = session.query(Priest).filter_by(telegram_id=user_id).first()
-            if priest:
-                priest.username = user.username
-            else:
-                priest = Priest(telegram_id=user_id, username=user.username)
-                session.add(priest)
-            session.commit()
-        finally:
-            session.close()
-        roles.append("sacerdote")
-    # ------------------------------------------
-
-    if is_secretary(user_id):
-        roles.append("segretario")
-    if is_director(user_id):
-        roles.append("direzione")
-
-    if not roles:
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✝️ Singolo sacramento", callback_data="mode_single")],
-            [InlineKeyboardButton("✝️✝️ Più sacramenti", callback_data="mode_multi")],
-        ])
-        await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n👋 Benvenuto nel bot ufficiale del Culto di Poseidone!\n\nAttraverso questo bot potrai **prenotare lo svolgimento di un sacramento** direttamente da Telegram.\n\n➡️ Per iniziare, scegli se vuoi prenotare:\n- ✝️ **Un singolo sacramento**\n- ✝️✝️ **Più sacramenti**\n\n⚠️ Ricorda: l'uso improprio del bot comporterà il **ban permanente**.\n\nSe hai difficoltà o riscontri problemi contatta 👉 @LavatiScimmiaInfuocata.",
-            reply_markup=kb,
-            parse_mode="Markdown"
-        )
-        return CHOOSE_MODE
-
-    # Caso: un solo ruolo → messaggio automatico
-    if len(roles) == 1:
-        role = roles[0]
-        if role == "sacerdote":
-            await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **sacerdote**.\n\n📜 Comandi principali:\n- `/mie_assegnazioni` → controlla i sacramenti che ti vengono assegnati (riceverai notifiche automatiche).\n- `/completa <id prenotazione>` → contrassegna una prenotazione come completata.\n\n⚠️ Ricorda: è tuo dovere verificare quotidianamente le assegnazioni.\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Consiglio degli Anziani**.",
-                parse_mode="Markdown"
-            )
-        elif role == "segretario":
-            await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📖 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **segretario**.\n\n📜 Comandi principali:\n- `/prenota_ingame` → registra ogni sacramento pagato, così potrà essere assegnato a un sacerdote.\n\n⚠️ Non creare prenotazioni false o di prova: rischi di rompere il bot!\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Consiglio degli Anziani**.",
-                parse_mode="Markdown"
-            )
-        elif role == "direzione":
-            await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n👑 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **Patriarca**.\n\n📜 Comandi principali:\n- `/assegna <id prenotazione> <@sacerdote>` → assegna una prenotazione a un sacerdote.\n- `/riassegna <id prenotazione> <@sacerdote>` → riassegna una prenotazione già assegnata.\n- `/lista_prenotazioni <pending / assigned / completed / @sacerdote / nick_fedele>` → consulta le prenotazioni filtrate:\n   • ⏳ **pending** → prenotazioni in attesa\n   • 📌 **assigned** → prenotazioni assegnate\n   • ✅ **completed** → prenotazioni completate\n   • 👤 **@sacerdote** → prenotazioni di un sacerdote\n   • 🎮 **nick fedele** → prenotazioni di un fedele\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Falco** o **yomino**.",
-                parse_mode="Markdown"
-            )
-        return ConversationHandler.END
-
-    # Caso: più ruoli → scelta con bottoni (aggiungiamo anche 'fedele')
-    buttons = [[InlineKeyboardButton(r.capitalize(), callback_data=f"role_{r}")] for r in roles]
-    buttons.append([InlineKeyboardButton("🎮 Fedele", callback_data="role_fedele")])
-
-    await update.message.reply_text(
-        "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🌟 Poiché sei un **VIP della chiesa**, possiedi più ruoli!\n\n👉 Puoi usarne solo uno alla volta: scegli quale messaggio di start ti serve tra quelli indicati qui sotto:",
-        reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode="Markdown"
-    )
-    return CHOOSE_ROLE
-
-
-
-async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    mode = query.data
-    if mode == "mode_single":
-        context.user_data["multi"] = False
-        await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✝️ Perfetto, hai scelto di prenotare **un singolo sacramento**.\n\n➡️ Il prossimo passo è scegliere quale.",
-            parse_mode="Markdown"
-        )
-        await context.bot.send_message(
-            query.message.chat_id,
-            "👇 Utilizza i bottoni qui sotto per procedere:",
-            reply_markup=sacrament_keyboard(),
-            parse_mode="Markdown"
-        )
-        return START_SACRAMENT
-    elif mode == "mode_multi":
-        context.user_data["multi"] = True
-        context.user_data["sacraments"] = []
-        await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✝️✝️ Perfetto, hai scelto di prenotare **più sacramenti**.\n\n➡️ Il prossimo passo è scegliere quali.",
-            parse_mode="Markdown"
-        )
-        await context.bot.send_message(
-            query.message.chat_id,
-            "👇 Utilizza i bottoni qui sotto per procedere:",
-            reply_markup=sacrament_keyboard(),
-            parse_mode="Markdown"
-        )
-        return START_SACRAMENT
-
-
-async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    role = query.data.replace("role_", "")
-
-    if role == "sacerdote":
-        await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **sacerdote**.\n\n📜 Comandi principali:\n- `/mie_assegnazioni` → controlla i sacramenti che ti vengono assegnati (riceverai notifiche automatiche).\n- `/completa <id prenotazione>` → contrassegna una prenotazione come completata.\n\n⚠️ Ricorda: è tuo dovere verificare quotidianamente le assegnazioni.\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Consiglio degli Anziani**.",
-            parse_mode="Markdown"
-        )
-        return ConversationHandler.END
-    elif role == "segretario":
-        await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📖 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **segretario**.\n\n📜 Comandi principali:\n- `/prenota_ingame` → registra ogni sacramento pagato, così potrà essere assegnato a un sacerdote.\n\n⚠️ Non creare prenotazioni false o di prova: rischi di rompere il bot!\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Consiglio degli Anziani**.",
-            parse_mode="Markdown"
-        )
-        return ConversationHandler.END
-    elif role == "direzione":
-        await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n👑 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **Patriarca**.\n\n📜 Comandi principali:\n- `/assegna <id prenotazione> <@sacerdote>` → assegna una prenotazione a un sacerdote.\n- `/riassegna <id prenotazione> <@sacerdote>` → riassegna una prenotazione già assegnata.\n- `/lista_prenotazioni <pending / assigned / completed / @sacerdote / nick_fedele>` → consulta le prenotazioni filtrate:\n   • ⏳ **pending** → prenotazioni in attesa\n   • 📌 **assigned** → prenotazioni assegnate\n   • ✅ **completed** → prenotazioni completate\n   • 👤 **@sacerdote** → prenotazioni di un sacerdote\n   • 🎮 **nick fedele** → prenotazioni di un fedele\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Falco** o **yomino**.",
-            parse_mode="Markdown"
-        )
-        return ConversationHandler.END
-    elif role == "fedele":
-        await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n👋 Benvenuto! Attraverso questo bot potrai **prenotare lo svolgimento di un sacramento** direttamente da Telegram.\n\n➡️ Per iniziare, scegli quale sacramento vuoi prenotare.\n\n⚠️ Ricorda: l'uso improprio del bot comporterà il **ban permanente**.\n\nSe hai difficoltà o riscontri problemi contatta 👉 @LavatiScimmiaInfuocata.",
-            reply_markup=sacrament_keyboard(),
-            parse_mode="Markdown"
-        )
-        return START_SACRAMENT
-
-
-async def choose_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "cancel":
-        await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ La prenotazione è stata **annullata con successo**!\n\n➡️ Se vuoi effettuarla di nuovo digita `/start`",
-            parse_mode="Markdown"
-        )
-        return ConversationHandler.END
-    if not query.data.startswith("sac_"):
-        return
-    sacr = query.data[4:]
-
-    if context.user_data.get("multi"):
-        context.user_data["sacraments"].append(sacr)
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("➕ Aggiungi un altro sacramento", callback_data="add_more")],
-            [InlineKeyboardButton("➡️ Prosegui con il prossimo passo", callback_data="go_nick")],
-        ])
-        await query.edit_message_text(
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✝️ Hai scelto il sacramento **{sacr.replace('_',' ')}**.\n\nVuoi aggiungere un altro sacramento o procedere con il prossimo passo?",
-            reply_markup=kb,
-            parse_mode="Markdown"
-        )
-        return START_SACRAMENT
-    else:
-        context.user_data["sacrament"] = sacr
-        await query.delete_message()
-        await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✍️ Bene! Adesso ti chiedo di rispondere a questo messaggio con il tuo **nickname di Minecraft**:",
-            parse_mode="Markdown"
-        )
-        return ENTER_NICK
-
-
-async def multi_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "add_more":
-        await query.edit_message_text(
-            "➕ Bene! Scegli il prossimo sacramento:",
-            reply_markup=sacrament_keyboard(),
-            parse_mode="Markdown"
-        )
-        return START_SACRAMENT
-    elif query.data == "go_nick":
-        if context.user_data.get("multi"):
-            context.user_data["sacrament"] = ",".join(context.user_data.get("sacraments", []))
-        await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✍️ Bene! Adesso ti chiedo di rispondere a questo messaggio con il tuo **nickname di Minecraft**:",
-            parse_mode="Markdown"
-        )
-        return ENTER_NICK
-        
-async def enter_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    nick = update.message.text.strip()
-    context.user_data["nickname_mc"] = nick
-    await update.message.delete()
-    await update.message.reply_text(
-        "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📝 Vuoi aggiungere una particolare richiesta?\n\n➡️ Inviala qui sotto.\n➡️ Se non vuoi aggiungere nulla, rispondi a questo messaggio con **'no'**.",
-        parse_mode="Markdown"
-    )
-    return ENTER_NOTES
-
-
-async def enter_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    notes = update.message.text.strip()
-    if notes.lower() == "no":
-        notes = ""
-    context.user_data["notes"] = notes
-
-    await update.message.delete()
-
-    if update.message.reply_to_message:
-        try:
-            await update.message.reply_to_message.delete()
-        except Exception:
-            pass
-
-    if context.user_data.get("multi"):
-        sacramenti = ", ".join([s.replace("_", " ") for s in context.user_data.get("sacraments", [])])
-    else:
-        sacramenti = context.user_data.get("sacrament", "N/D").replace("_", " ")
-    nickname = context.user_data.get("nickname_mc", "N/D")
-
-    await update.message.reply_text(
-        f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Sei arrivato alla fine della prenotazione.\n\nQui sotto è presente il **resoconto** delle informazioni scritte da te. Controlla che siano giuste e conferma la tua prenotazione:\n\n"
-        f"• 🎮 Nickname Minecraft: **{nickname}**\n"
-        f"• ✝️ Sacramento richiesto: **{sacramenti}**\n"
-        f"• 📝 Note Aggiuntive: **{notes or 'nessuna nota.'}**",
-        reply_markup=confirm_keyboard(),
-        parse_mode="Markdown"
-    )
-    return CONFIRM_BOOKING
-
-
-async def confirm_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "cancel":
-        await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ La prenotazione è stata **annullata con successo**!\n\n➡️ Se vuoi effettuarla di nuovo digita `/start`",
-            parse_mode="Markdown"
-        )
-        return ConversationHandler.END
-    if query.data != "confirm":
-        return
-
-    user = update.effective_user
-    session = SessionLocal()
-    try:
-        # Gestione singolo vs multiplo
-        if context.user_data.get("multi"):
-            sacrament_value = ",".join(context.user_data.get("sacraments", []))
-        else:
-            sacrament_value = context.user_data.get("sacrament")
-
-        booking = Booking(
-            source="telegram",
-            client_telegram_id=user.id,
-            rp_name=None,
-            nickname_mc=context.user_data.get("nickname_mc"),
-            sacrament=sacrament_value,
-            notes=context.user_data.get("notes", ""),
-            status="pending",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
-        session.add(booking)
-        session.commit()
-
-        session.add(EventLog(
-            booking_id=booking.id,
-            actor_id=user.id,
-            action="create",
-            details="telegram"
-        ))
-        session.commit()
-
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📥 Prendi in carico", callback_data=f"take_{booking.id}")],
-        ])
-        text = (
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n"
-            f"🛎 Driiinnn! È arrivata una nuova **richiesta di prenotazione** per effettuare un sacramento!\n\n"
-            f"• 👤 Richiesta effettuata da: **@{user.username or user.id}** (ID: #{booking.id})\n"
-            f"• ✝️ Sacramento richiesto: **{booking.sacrament.replace('_',' ')}**\n"
-            f"• 🎮 Nickname Minecraft: **{booking.nickname_mc or 'non presente.'}**\n"
-            f"• 📝 Note Aggiuntive: **{booking.notes or 'non presente.'}**\n\n"
-            f"✅ Verifica l’interesse del richiedente e la correttezza dei campi.\nSe è una richiesta meme ignoralo.\nAltrimenti, prendi in carico la prenotazione e contattalo in privato per completare la procedura."
-        )
-        await context.bot.send_message(PRIESTS_GROUP_ID, text, reply_markup=kb, parse_mode="Markdown")
-
-        await query.edit_message_text(
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✅ La tua prenotazione (ID #{booking.id}) è **andata a buon fine**!\n\n📩 A breve un sacerdote ti contatterà in privato per effettuare il sacramento.",
-            parse_mode="Markdown"
-        )
-
-        return ConversationHandler.END
-    finally:
-        session.close()
-
-# ---- SACERDOTI: presa in carico ----
-async def priests_take(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    if not data.startswith("take_"):
-        return
-    priest_id = update.effective_user.id
-    if not is_priest(priest_id):
-        await query.edit_message_reply_markup(None)
-        await query.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Solo i **sacerdoti** possono prendere in carico una prenotazione.",
-            parse_mode="Markdown"
-        )
-        return
-    booking_id = int(data.split("_")[1])
-    session = SessionLocal()
-    try:
-        booking = session.query(Booking).get(booking_id)
-        if not booking or booking.status not in ["pending", "assigned"]:
-            await query.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ La richiesta non è **disponibile**.",
-                parse_mode="Markdown"
-            )
-            return
-        booking.status = "in_progress"
-        booking.updated_at = datetime.now(timezone.utc)
-        session.add(booking)
-
-        assign = Assignment(
-            booking_id=booking.id,
-            priest_telegram_id=priest_id,
-            assigned_by=None,
-            assigned_at=datetime.now(timezone.utc),
-            taken_at=datetime.now(timezone.utc),
-        )
-        session.add(assign)
-        session.add(EventLog(booking_id=booking.id, actor_id=priest_id, action="take", details="priests_group"))
-        session.commit()
-
-        await query.edit_message_text(
-            query.message.text + f"\n✅ La prenotazione è stata **presa in carico** da @{update.effective_user.username or str(priest_id)}",
-            parse_mode="Markdown"
-        )
-    finally:
-        session.close()
-
 
 # ---- INGAME FLOW (SECRETARIES) ----
 @role_required(
@@ -1478,33 +1196,9 @@ def build_application():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_error_handler(on_error)
 
-    # Client booking conversation
-    conv_client = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            # scelta singolo/multiplo
-            CHOOSE_MODE: [CallbackQueryHandler(choose_mode, pattern=r"^mode_")],
-            # scelta ruolo (quando l’utente ha più ruoli)
-            CHOOSE_ROLE: [CallbackQueryHandler(choose_role, pattern=r"^role_")],
-            # scelta sacramento
-            START_SACRAMENT: [
-                CallbackQueryHandler(choose_sacrament, pattern=r"^sac_.*|cancel"),
-                CallbackQueryHandler(multi_flow, pattern=r"^(add_more|go_nick)$"),
-            ],
-            # inserimento nick Minecraft
-            ENTER_NICK: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_nick)],
-            # inserimento note
-            ENTER_NOTES: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_notes)],
-            # conferma finale
-            CONFIRM_BOOKING: [CallbackQueryHandler(confirm_booking, pattern=r"^confirm|cancel")],
-        },
-        fallbacks=[CommandHandler("cancel", cancel_handler)],
-        allow_reentry=True,
-    )
-    app.add_handler(conv_client)
-
-    # Take in priests group
-    app.add_handler(CallbackQueryHandler(priests_take, pattern=r"^take_\d+$"))
+    # START (solo benvenuto)
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(choose_role, pattern=r"^role_(sacerdote|segretario|direzione)$"))
 
     # Ingame booking conversation (secretaries)
     conv_ingame = ConversationHandler(
@@ -1520,11 +1214,10 @@ def build_application():
         allow_reentry=True,
     )
     app.add_handler(conv_ingame)
-    app.add_handler(CallbackQueryHandler(choose_role, pattern=r"^role_"))
 
     # Direzione
     app.add_handler(CommandHandler("assegna", assegna))
-    app.add_handler(CommandHandler("riassegna", riassegna))   # <--- aggiunto
+    app.add_handler(CommandHandler("riassegna", riassegna))
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern="^(confirm_remove_|cancel_remove)"))
 
@@ -1532,13 +1225,16 @@ def build_application():
     app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
     app.add_handler(CommandHandler("completa", completa))
 
-    # Callback per la paginazione delle assegnazioni
+    # Paginazioni
     app.add_handler(CallbackQueryHandler(mie_assegnazioni_page, pattern=r"^assign_page_\d+$"))
     app.add_handler(CallbackQueryHandler(lista_prenotazioni_page, pattern=r"^bookings_page_\d+_.+$"))
-    # Scheduler jobs
+
+    # Scheduler
     scheduler = AsyncIOScheduler(timezone="UTC")
     scheduler.add_job(check_sla, "interval", hours=1, args=[app])
     scheduler.add_job(weekly_report, "cron", day_of_week="sun", hour=23, minute=55, args=[app])
     scheduler.start()
 
     return app
+
+
