@@ -1300,7 +1300,7 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
             await target.edit_message_text(msg, parse_mode="Markdown")
         return
 
-    per_page = 10
+    per_page = 5
     total_pages = (len(bookings) + per_page - 1) // per_page
     start = (page - 1) * per_page
     end = start + per_page
