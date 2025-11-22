@@ -279,7 +279,8 @@ async def ig_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = update.message.text.lower().replace(" ", "_")
-
+    kb = ReplyKeyboardMarkup([[KeyboardButton(s.replace("_"," "))] for s in SACRAMENTS],
+                             one_time_keyboard=False, resize_keyboard=True)
     # elimina messaggi
     await update.message.delete()
     if "last_prompt_id" in context.user_data:
@@ -293,6 +294,7 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ Attenzione, non hai selezionato nessun **sacramento**.\n\n➡️ Riprova:",
+                reply_markup=kb,
                 parse_mode="Markdown"
             )
             context.user_data["last_prompt_id"] = msg.message_id
@@ -309,6 +311,7 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Il sacramento inserito non è **valido**.\n\n➡️ Riprova:",
+            reply_markup=kb,
             parse_mode="Markdown"
         )
         context.user_data["last_prompt_id"] = msg.message_id
@@ -318,6 +321,7 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✅ Il sacramento è stato **aggiunto con successo**!\n\n➡️ Selezionane un altro oppure scrivi **'fine'**:",
+        reply_markup=kb,
         parse_mode="Markdown"
     )
     context.user_data["last_prompt_id"] = msg.message_id
