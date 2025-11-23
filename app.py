@@ -1053,7 +1053,7 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{term}%")).order_by(Booking.id.desc()).all()
                 title = last.get("title") or f"📋 Prenotazioni del fedele '{term}'"
                 await _send_paginated_bookings(query, bookings, title, term, page=page)
-
+                
             elif kind == "search_id":
                 bid = last.get("booking_id")
                 booking = session.query(Booking).get(bid) if bid else None
@@ -1092,7 +1092,8 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 parse_mode="Markdown"
             )
         elif data == "search_fedele":
-            msg = await query.edit_message_text(
+            # invia un nuovo messaggio di prompt e salva l'ID
+            msg = await query.message.reply_text(
                 "✍️ Inserisci il nickname del fedele con un messaggio in chat:",
                 parse_mode="Markdown"
             )
@@ -1100,7 +1101,8 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             context.user_data["last_prompt_message_id"] = msg.message_id
 
         elif data == "search_id":
-            msg = await query.edit_message_text(
+            # invia un nuovo messaggio di prompt e salva l'ID
+            msg = await query.message.reply_text(
                 "✍️ Inserisci l'ID della prenotazione con un messaggio in chat:",
                 parse_mode="Markdown"
             )
@@ -1212,7 +1214,9 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
         if isinstance(target, Message):
             await target.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
         elif isinstance(target, CallbackQuery):
-            await target.edit_message_text(msg, reply_markup=kb, parse_mode="Markdown")
+            # controllo per evitare "Message is not modified"
+            if target.message.text != msg or target.message.reply_markup != kb:
+                await target.edit_message_text(msg, reply_markup=kb, parse_mode="Markdown")
         return
 
     per_page = 5
@@ -1228,7 +1232,6 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
         for b in bookings_page:
             assignment = session.query(Assignment).filter_by(booking_id=b.id).first()
 
-            # 🔹 Recupera il sacerdote dal DB per mostrare il tag
             priest_tag = "Nessuno."
             if assignment and getattr(assignment, "priest_telegram_id", None):
                 priest = session.query(Priest).filter(Priest.telegram_id == assignment.priest_telegram_id).first()
@@ -1275,7 +1278,9 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if isinstance(target, Message):
         await target.reply_text(text, reply_markup=kb, parse_mode="Markdown")
     elif isinstance(target, CallbackQuery):
-        await target.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+        # controllo per evitare "Message is not modified"
+        if target.message.text != text or target.message.reply_markup != kb:
+            await target.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
 
 # 🔎 Callback per conferma/annulla rimozione prenotazioni
 async def handle_remove_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
