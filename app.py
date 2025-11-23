@@ -916,105 +916,111 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
 
-    args = update.message.text.split()
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
+        [InlineKeyboardButton("📌 Assegnate", callback_data="filter_assigned")],
+        [InlineKeyboardButton("✅ Completate", callback_data="filter_completed")],
+        [InlineKeyboardButton("🙏 Per sacerdote", callback_data="filter_priests")],
+        [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
+        [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
+    ])
 
-    # 🔎 Caso rimozione con conferma
-    if len(args) >= 3 and args[1].lower() == "rimuovi":
-        try:
-            booking_ids = [int(x) for x in args[2:]]
-        except ValueError:
-            await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Devi specificare solo **ID numerici validi**.",
-                parse_mode="Markdown"
-            )
-            return
+    await update.message.reply_text(
+        "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
+        reply_markup=kb,
+        parse_mode="Markdown"
+    )
 
-        kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("✅ Conferma", callback_data=f"confirm_remove_{','.join(map(str, booking_ids))}"),
-                InlineKeyboardButton("❌ Annulla", callback_data="cancel_remove")
-            ]
-        ])
-        await update.message.reply_text(
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ Vuoi davvero **rimuovere** le prenotazioni: {', '.join(map(str, booking_ids))}?",
-            reply_markup=kb,
-            parse_mode="Markdown"
-        )
-        return
-
-    # 🔎 Caso normale: visualizzazione lista
-    filtro = args[1].lower() if len(args) == 2 else None
-
-    session = SessionLocal()
-    try:
-        bookings = []
-        titolo = "📋 Riepilogo prenotazioni"
-
-        if filtro:
-            if filtro in STATUS:
-                bookings = session.query(Booking).filter(Booking.status == filtro).order_by(Booking.id.desc()).all()
-                titolo = f"📋 Prenotazioni {filtro.upper()}"
-            else:
-                try:
-                    priest_id = int(filtro)
-                    assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
-                    bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
-                    titolo = f"📋 Prenotazioni sacerdote {priest_id}"
-                except ValueError:
-                    bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{filtro}%")).order_by(Booking.id.desc()).all()
-                    titolo = f"📋 Prenotazioni del fedele '{filtro}'"
-        else:
-            bookings = session.query(Booking).order_by(Booking.id.desc()).all()
-
-        await _send_paginated_bookings(update.message, bookings, titolo, filtro, page=1)
-    finally:
-        session.close()
-
-
-# 🔎 Callback per conferma/annulla
-async def handle_remove_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     data = query.data
+
     session = SessionLocal()
     try:
-        if data.startswith("confirm_remove_"):
-            ids_str = data.replace("confirm_remove_", "")
-            booking_ids = [int(x) for x in ids_str.split(",")]
+        if data.startswith("filter_"):
+            filtro = data.replace("filter_", "")
+            if filtro in STATUS:
+                bookings = session.query(Booking).filter(Booking.status == filtro).order_by(Booking.id.desc()).all()
+                await _send_paginated_bookings(query, bookings, f"📋 Prenotazioni {filtro.upper()}", filtro, page=1)
+            elif filtro == "priests":
+                priests = session.query(Priest).all()
+                buttons = [[InlineKeyboardButton(f"@{p.username or p.telegram_id}", callback_data=f"priest_{p.telegram_id}")]
+                           for p in priests]
+                buttons.append([InlineKeyboardButton("⬅️ Torna indietro", callback_data="back_main")])
+                await query.edit_message_text(
+                    "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Scegli un sacerdote:",
+                    reply_markup=InlineKeyboardMarkup(buttons),
+                    parse_mode="Markdown"
+                )
 
-            removed, not_found = [], []
-            for booking_id in booking_ids:
-                booking = session.query(Booking).get(booking_id)
-                if not booking:
-                    not_found.append(booking_id)
-                    continue
-
-                session.query(Assignment).filter_by(booking_id=booking.id).delete()
-                session.query(EventLog).filter_by(booking_id=booking.id).delete()
-                session.delete(booking)
-                removed.append(booking_id)
-
-            session.commit()
-
-            msg_parts = []
-            if removed:
-                msg_parts.append(f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✅ Prenotazioni **rimosse**: {', '.join(map(str, removed))}")
-            if not_found:
-                msg_parts.append(f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Prenotazioni **non trovate**: {', '.join(map(str, not_found))}")
-
+        elif data.startswith("priest_"):
+            priest_id = int(data.replace("priest_", ""))
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📌 Assegnate", callback_data=f"priestfilter_{priest_id}_assigned")],
+                [InlineKeyboardButton("✅ Completate", callback_data=f"priestfilter_{priest_id}_completed")],
+                [InlineKeyboardButton("⬅️ Torna indietro", callback_data="filter_priests")],
+            ])
             await query.edit_message_text(
-                "\n".join(msg_parts) if msg_parts else "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Nessuna prenotazione rimossa.",
+                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Filtra le prenotazioni del sacerdote selezionato:",
+                reply_markup=kb,
                 parse_mode="Markdown"
             )
 
-        elif data == "cancel_remove":
+        elif data.startswith("priestfilter_"):
+            _, priest_id, status = data.split("_")
+            assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == int(priest_id)).all()
+            bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
+            bookings = [b for b in bookings if b and b.status == status]
+            await _send_paginated_bookings(query, bookings, f"📋 Prenotazioni sacerdote {priest_id} [{status}]", f"{priest_id}", page=1)
+
+        elif data == "back_main":
+            await lista_prenotazioni(update, context)
+
+        elif data == "search_fedele":
             await query.edit_message_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Rimozione **annullata**.",
+                "✍️ Inserisci il nickname del fedele con un messaggio in chat:",
                 parse_mode="Markdown"
             )
+            context.user_data["search_mode"] = "fedele"
+
+        elif data == "search_id":
+            await query.edit_message_text(
+                "✍️ Inserisci l'ID della prenotazione con un messaggio in chat:",
+                parse_mode="Markdown"
+            )
+            context.user_data["search_mode"] = "id"
+
     finally:
         session.close()
+
+async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mode = context.user_data.get("search_mode")
+    if not mode:
+        return
+
+    session = SessionLocal()
+    try:
+        if mode == "fedele":
+            filtro = update.message.text.strip()
+            bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{filtro}%")).order_by(Booking.id.desc()).all()
+            await _send_paginated_bookings(update.message, bookings, f"📋 Prenotazioni del fedele '{filtro}'", filtro, page=1)
+
+        elif mode == "id":
+            try:
+                booking_id = int(update.message.text.strip())
+            except ValueError:
+                await update.message.reply_text("❌ Devi inserire un ID numerico valido.", parse_mode="Markdown")
+                return
+            booking = session.query(Booking).get(booking_id)
+            if booking:
+                await _send_paginated_bookings(update.message, [booking], f"📋 Prenotazione #{booking_id}", str(booking_id), page=1)
+            else:
+                await update.message.reply_text("❌ Nessuna prenotazione trovata con questo ID.", parse_mode="Markdown")
+
+    finally:
+        session.close()
+    context.user_data["search_mode"] = None
 
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
@@ -1038,25 +1044,17 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
         for b in bookings_page:
             assignment = session.query(Assignment).filter_by(booking_id=b.id).first()
             priest_tag = f"@{assignment.priest_username}" if assignment and getattr(assignment, "priest_username", None) else "Nessuno."
-
             secretary_tag = f"@{b.secretary_username}" if getattr(b, "secretary_username", None) else "Nessun contatto presente."
-
-            if getattr(b, "created_at", None):
-                timestamp = b.created_at.strftime("%d/%m/%Y %H:%M")
-            elif getattr(b, "updated_at", None):
-                timestamp = b.updated_at.strftime("%d/%m/%Y %H:%M")
-            else:
-                timestamp = "-"
-
+            timestamp = b.created_at.strftime("%d/%m/%Y %H:%M") if getattr(b, "created_at", None) else "-"
             lines.append(
                 f"📌 Prenotazione #{b.id} [{b.status.upper()}]\n"
                 f"• ✝️ Sacramento/i: {b.sacrament.replace('_',' ')}\n"
                 f"• 🎮 Nick Minecraft: {b.nickname_mc or 'Nessun nickname inserito.'}\n"
                 f"• 👤 Contatto TG fedele: {b.rp_name or 'Nessun contatto inserito.'}\n"
                 f"• 📝 Note: {b.notes or 'Nessuna nota.'}\n"
-                f"• 📖 Registrata dal segretario: {secretary_tag or 'Nessun segretario registrato.'}\n"
+                f"• 📖 Registrata dal segretario: {secretary_tag}\n"
                 f"• ⏰ Orario: {timestamp}\n"
-                f"• 🙏 Assegnata a: {priest_tag or 'Nessuno.'}\n"
+                f"• 🙏 Assegnata a: {priest_tag}\n"
                 "-----------------------------"
             )
     finally:
@@ -1070,47 +1068,19 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if page < total_pages:
         buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"bookings_page_{page+1}_{filtro or 'all'}"))
 
-    kb = InlineKeyboardMarkup([buttons]) if buttons else None
+    # Bottone per tornare al pannello principale
+    nav_buttons = []
+    if buttons:
+        nav_buttons.append(buttons)
+    nav_buttons.append([InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")])
+
+    kb = InlineKeyboardMarkup(nav_buttons)
 
     if isinstance(target, Message):
         await target.reply_text(text, reply_markup=kb, parse_mode="Markdown")
     elif isinstance(target, CallbackQuery):
         await target.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
 
-
-async def lista_prenotazioni_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data.split("_")
-    page = int(data[2])
-    filtro = data[3] if len(data) > 3 and data[3] != "all" else None
-
-    session = SessionLocal()
-    try:
-        bookings = []
-        titolo = "📋 Riepilogo prenotazioni"
-
-        if filtro:
-            if filtro in STATUS:
-                bookings = session.query(Booking).filter(Booking.status == filtro).order_by(Booking.id.desc()).all()
-                titolo = f"📋 Prenotazioni {filtro.upper()}"
-            else:
-                try:
-                    priest_id = int(filtro)
-                    assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
-                    bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
-                    titolo = f"📋 Prenotazioni sacerdote {priest_id}"
-                except ValueError:
-                    bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{filtro}%")).order_by(Booking.id.desc()).all()
-                    titolo = f"📋 Prenotazioni del fedele '{filtro}'"
-        else:
-            bookings = session.query(Booking).order_by(Booking.id.desc()).all()
-
-        # 🔎 Qui passo direttamente query (non query.message!)
-        await _send_paginated_bookings(query, bookings, titolo, filtro, page)
-
-    finally:
-        session.close()
 
 async def weekly_report(app):
     session = SessionLocal()
@@ -1225,6 +1195,13 @@ def build_application():
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern="^(confirm_remove_|cancel_remove)"))
 
+    # 🔹 Nuovi handler per pannello avanzato prenotazioni
+    app.add_handler(CallbackQueryHandler(
+        lista_prenotazioni_callback,
+        pattern="^(filter_|priest_|priestfilter_|back_main|search_fedele|search_id)"
+    ))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lista_prenotazioni_search))
+
     # Sacerdoti
     app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
     app.add_handler(CommandHandler("completa", completa))
@@ -1238,6 +1215,9 @@ def build_application():
     scheduler.add_job(check_sla, "interval", hours=1, args=[app])
     scheduler.add_job(weekly_report, "cron", day_of_week="sun", hour=23, minute=55, args=[app])
     scheduler.start()
+
+    return app
+
 
     return app
 
