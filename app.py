@@ -817,6 +817,7 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
         return
+
     args = update.message.text.split()
     if len(args) != 2:
         await update.message.reply_text(
@@ -833,6 +834,14 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not b:
             await update.message.reply_text(
                 "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ L'**ID della prenotazione** inserita risulta inesistente.",
+                parse_mode="Markdown"
+            )
+            return
+
+        # 🔹 Controllo: se già completata, blocca
+        if b.status == "completed":
+            await update.message.reply_text(
+                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ La prenotazione #{b.id} risulta già **completata** e non può essere completata di nuovo.",
                 parse_mode="Markdown"
             )
             return
@@ -870,6 +879,7 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     finally:
         session.close()
+
 
 
 # ---- CANCEL ----
@@ -941,7 +951,6 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
         if data.startswith("filter_"):
             filtro = data.replace("filter_", "")
             if filtro in STATUS:
-                # salva contesto: lista per stato
                 context.user_data["last_list"] = {"kind": "status", "status": filtro, "title": f"📋 Prenotazioni {filtro.upper()}"}
                 bookings = session.query(Booking).filter(Booking.status == filtro).order_by(Booking.id.desc()).all()
                 await _send_paginated_bookings(query, bookings, f"📋 Prenotazioni {filtro.upper()}", filtro, page=1)
@@ -951,15 +960,13 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 buttons = [[InlineKeyboardButton(f"@{p.username or p.telegram_id}", callback_data=f"priest_{p.telegram_id}")]
                            for p in priests]
                 buttons.append([InlineKeyboardButton("⬅️ Torna indietro", callback_data="back_main")])
-                await query.edit_message_text(
-                    "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Scegli un sacerdote:",
-                    reply_markup=InlineKeyboardMarkup(buttons),
-                    parse_mode="Markdown"
-                )
+                new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Scegli un sacerdote:"
+                new_markup = InlineKeyboardMarkup(buttons)
+                if query.message.text != new_text or query.message.reply_markup != new_markup:
+                    await query.edit_message_text(new_text, reply_markup=new_markup, parse_mode="Markdown")
 
         elif data.startswith("priest_"):
             priest_id = int(data.replace("priest_", ""))
-            # recupera il sacerdote per mostrare il tag
             priest = session.query(Priest).filter(Priest.telegram_id == priest_id).first()
             priest_tag = f"@{priest.username}" if priest and priest.username else str(priest_id)
 
@@ -968,21 +975,16 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 [InlineKeyboardButton("✅ Completate", callback_data=f"priestfilter_{priest_id}_completed")],
                 [InlineKeyboardButton("⬅️ Torna indietro", callback_data="filter_priests")],
             ])
-            await query.edit_message_text(
-                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Filtra le prenotazioni del sacerdote selezionato ({priest_tag}):",
-                reply_markup=kb,
-                parse_mode="Markdown"
-            )
+            new_text = f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Filtra le prenotazioni del sacerdote selezionato ({priest_tag}):"
+            if query.message.text != new_text or query.message.reply_markup != kb:
+                await query.edit_message_text(new_text, reply_markup=kb, parse_mode="Markdown")
 
         elif data.startswith("priestfilter_"):
             _, priest_id, status = data.split("_")
             priest_id = int(priest_id)
-
-            # recupera il sacerdote per mostrare il tag
             priest = session.query(Priest).filter(Priest.telegram_id == priest_id).first()
             priest_tag = f"@{priest.username}" if priest and priest.username else str(priest_id)
 
-            # salva contesto: lista per sacerdote + stato
             context.user_data["last_list"] = {
                 "kind": "priest",
                 "priest_id": priest_id,
@@ -994,18 +996,12 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
             bookings = [b for b in bookings if b and b.status == status]
 
-            await _send_paginated_bookings(
-                query,
-                bookings,
-                f"📋 Prenotazioni sacerdote {priest_tag} [{status}]",
-                f"{priest_id}",
-                page=1
-            )
+            await _send_paginated_bookings(query, bookings, f"📋 Prenotazioni sacerdote {priest_tag} [{status}]", f"{priest_id}", page=1)
+
         elif data.startswith("bookings_page_"):
-            # gestione cambio pagina
-            payload = data[len("bookings_page_"):]  # es: "3_pending"
+            payload = data[len("bookings_page_"):]
             try:
-                page_part, filtro = payload.split("_", 1)  # → ["3", "pending"]
+                page_part, filtro = payload.split("_", 1)
                 page = int(page_part)
             except (ValueError, IndexError):
                 kb = InlineKeyboardMarkup([
@@ -1016,11 +1012,9 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                     [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
                     [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
                 ])
-                await query.edit_message_text(
-                    "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
-                    reply_markup=kb,
-                    parse_mode="Markdown"
-                )
+                new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
+                if query.message.text != new_text or query.message.reply_markup != kb:
+                    await query.edit_message_text(new_text, reply_markup=kb, parse_mode="Markdown")
                 return
 
             last = context.user_data.get("last_list") or {}
@@ -1035,25 +1029,20 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             elif kind == "priest":
                 priest_id = last.get("priest_id")
                 status = last.get("status")
-
-                # recupera il sacerdote per mostrare il tag
                 priest = session.query(Priest).filter(Priest.telegram_id == int(priest_id)).first()
                 priest_tag = f"@{priest.username}" if priest and priest.username else str(priest_id)
-
                 assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == int(priest_id)).all()
                 bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
                 bookings = [b for b in bookings if b and b.status == status]
-
                 title = last.get("title") or f"📋 Prenotazioni sacerdote {priest_tag} [{status}]"
                 await _send_paginated_bookings(query, bookings, title, f"{priest_id}", page=page)
-
 
             elif kind == "search_nick":
                 term = last.get("term") or ""
                 bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{term}%")).order_by(Booking.id.desc()).all()
                 title = last.get("title") or f"📋 Prenotazioni del fedele '{term}'"
                 await _send_paginated_bookings(query, bookings, title, term, page=page)
-                
+
             elif kind == "search_id":
                 bid = last.get("booking_id")
                 booking = session.query(Booking).get(bid) if bid else None
@@ -1070,13 +1059,9 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                     [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
                     [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
                 ])
-                await query.edit_message_text(
-                    "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
-                    reply_markup=kb,
-                    parse_mode="Markdown"
-                )
-
-
+                new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
+                if query.message.text != new_text or query.message.reply_markup != kb:
+                    await query.edit_message_text(new_text, reply_markup=kb, parse_mode="Markdown")
         elif data == "back_main":
             kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
@@ -1086,13 +1071,16 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
                 [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
             ])
-            await query.edit_message_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
-                reply_markup=kb,
-                parse_mode="Markdown"
-            )
+            new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
+            if query.message.text != new_text or query.message.reply_markup != kb:
+                await query.edit_message_text(
+                    new_text,
+                    reply_markup=kb,
+                    parse_mode="Markdown"
+                )
+
         elif data == "search_fedele":
-            # invia un nuovo messaggio di prompt e salva l'ID
+            # invia un nuovo messaggio di prompt e salva l'ID (nuovo messaggio, non edit)
             msg = await query.message.reply_text(
                 "✍️ Inserisci il nickname del fedele con un messaggio in chat:",
                 parse_mode="Markdown"
@@ -1101,7 +1089,7 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             context.user_data["last_prompt_message_id"] = msg.message_id
 
         elif data == "search_id":
-            # invia un nuovo messaggio di prompt e salva l'ID
+            # invia un nuovo messaggio di prompt e salva l'ID (nuovo messaggio, non edit)
             msg = await query.message.reply_text(
                 "✍️ Inserisci l'ID della prenotazione con un messaggio in chat:",
                 parse_mode="Markdown"
@@ -1110,13 +1098,13 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             context.user_data["last_prompt_message_id"] = msg.message_id
 
         elif data == "close_panel":
-            await query.edit_message_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Pannello prenotazioni chiuso.",
-                parse_mode="Markdown"
-            )
+            new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Pannello prenotazioni chiuso."
+            if query.message.text != new_text:
+                await query.edit_message_text(
+                    new_text,
+                    parse_mode="Markdown"
+                )
 
-    finally:
-        session.close()
 
 
 
@@ -1202,7 +1190,6 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
 
     # 🔹 Reset modalità ricerca
     context.user_data["search_mode"] = None
-
 
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
