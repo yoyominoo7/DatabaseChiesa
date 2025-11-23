@@ -195,7 +195,7 @@ async def _send_role_welcome(target_message: Message, role: str):
         )
     elif role == "direzione":
         await target_message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n👑 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **Patriarca**.\n\n📜 Comandi principali:\n- `/assegna <id prenotazione> <@sacerdote>` → assegna una prenotazione a un sacerdote.\n- `/riassegna <id prenotazione> <@sacerdote>` → riassegna una prenotazione già assegnata.\n- `/lista_prenotazioni <pending / assigned / completed / @sacerdote / nick_fedele>` → consulta le prenotazioni filtrate:\n   • ⏳ **pending** → prenotazioni in attesa\n   • 📌 **assigned** → prenotazioni assegnate\n   • ✅ **completed** → prenotazioni completate\n   • 👤 **@sacerdote** → prenotazioni di un sacerdote\n   • 🎮 **nick fedele** → prenotazioni di un fedele\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Falco** o **yomino**.",
+            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n👑 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **Patriarca**.\n\n📜 Comandi principali:\n- `/assegna <id prenotazione> <@sacerdote>` → assegna una prenotazione a un sacerdote.\n- `/riassegna <id prenotazione> <@sacerdote>` → riassegna una prenotazione già assegnata.\n- `/lista_prenotazioni` → consulta le prenotazioni filtrate:\n   • ⏳ **pending** → prenotazioni in attesa\n   • 📌 **assigned** → prenotazioni assegnate\n   • ✅ **completed** → prenotazioni completate\n   • 👤 **@sacerdote** → prenotazioni di un sacerdote\n   • 🎮 **nick fedele** → prenotazioni di un fedele\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Falco** o **yomino**.",
             parse_mode="Markdown"
         )
     else:
@@ -959,13 +959,17 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
 
         elif data.startswith("priest_"):
             priest_id = int(data.replace("priest_", ""))
+            # recupera il sacerdote per mostrare il tag
+            priest = session.query(Priest).filter(Priest.telegram_id == priest_id).first()
+            priest_tag = f"@{priest.username}" if priest and priest.username else str(priest_id)
+
             kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton("📌 Assegnate", callback_data=f"priestfilter_{priest_id}_assigned")],
                 [InlineKeyboardButton("✅ Completate", callback_data=f"priestfilter_{priest_id}_completed")],
                 [InlineKeyboardButton("⬅️ Torna indietro", callback_data="filter_priests")],
             ])
             await query.edit_message_text(
-                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Filtra le prenotazioni del sacerdote selezionato:",
+                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Filtra le prenotazioni del sacerdote selezionato ({priest_tag}):",
                 reply_markup=kb,
                 parse_mode="Markdown"
             )
@@ -973,13 +977,30 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
         elif data.startswith("priestfilter_"):
             _, priest_id, status = data.split("_")
             priest_id = int(priest_id)
+
+            # recupera il sacerdote per mostrare il tag
+            priest = session.query(Priest).filter(Priest.telegram_id == priest_id).first()
+            priest_tag = f"@{priest.username}" if priest and priest.username else str(priest_id)
+
             # salva contesto: lista per sacerdote + stato
-            context.user_data["last_list"] = {"kind": "priest", "priest_id": priest_id, "status": status, "title": f"📋 Prenotazioni sacerdote {priest_id} [{status}]"}
+            context.user_data["last_list"] = {
+                "kind": "priest",
+                "priest_id": priest_id,
+                "status": status,
+                "title": f"📋 Prenotazioni sacerdote {priest_tag} [{status}]"
+            }
+
             assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
             bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
             bookings = [b for b in bookings if b and b.status == status]
-            await _send_paginated_bookings(query, bookings, f"📋 Prenotazioni sacerdote {priest_id} [{status}]", f"{priest_id}", page=1)
 
+            await _send_paginated_bookings(
+                query,
+                bookings,
+                f"📋 Prenotazioni sacerdote {priest_tag} [{status}]",
+                f"{priest_id}",
+                page=1
+            )
         elif data.startswith("bookings_page_"):
             # gestione cambio pagina
             payload = data[len("bookings_page_"):]  # es: "3_pending"
@@ -1014,11 +1035,18 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             elif kind == "priest":
                 priest_id = last.get("priest_id")
                 status = last.get("status")
+
+                # recupera il sacerdote per mostrare il tag
+                priest = session.query(Priest).filter(Priest.telegram_id == int(priest_id)).first()
+                priest_tag = f"@{priest.username}" if priest and priest.username else str(priest_id)
+
                 assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == int(priest_id)).all()
                 bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
                 bookings = [b for b in bookings if b and b.status == status]
-                title = last.get("title") or f"📋 Prenotazioni sacerdote {priest_id} [{status}]"
+
+                title = last.get("title") or f"📋 Prenotazioni sacerdote {priest_tag} [{status}]"
                 await _send_paginated_bookings(query, bookings, title, f"{priest_id}", page=page)
+
 
             elif kind == "search_nick":
                 term = last.get("term") or ""
@@ -1063,20 +1091,21 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 reply_markup=kb,
                 parse_mode="Markdown"
             )
-
         elif data == "search_fedele":
-            await query.edit_message_text(
+            msg = await query.edit_message_text(
                 "✍️ Inserisci il nickname del fedele con un messaggio in chat:",
                 parse_mode="Markdown"
             )
             context.user_data["search_mode"] = "fedele"
+            context.user_data["last_prompt_message_id"] = msg.message_id
 
         elif data == "search_id":
-            await query.edit_message_text(
+            msg = await query.edit_message_text(
                 "✍️ Inserisci l'ID della prenotazione con un messaggio in chat:",
                 parse_mode="Markdown"
             )
             context.user_data["search_mode"] = "id"
+            context.user_data["last_prompt_message_id"] = msg.message_id
 
         elif data == "close_panel":
             await query.edit_message_text(
@@ -1086,6 +1115,7 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
 
     finally:
         session.close()
+
 
 
 async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1172,7 +1202,6 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
     context.user_data["search_mode"] = None
 
 
-
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
         msg = f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Nessuna prenotazione trovata per **{titolo}**."
@@ -1180,10 +1209,8 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
             [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
         ])
 
-        # Se arriva da un messaggio normale → reply_text
         if isinstance(target, Message):
             await target.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
-        # Se arriva da un callback query → edit_message_text (sostituisce il messaggio)
         elif isinstance(target, CallbackQuery):
             await target.edit_message_text(msg, reply_markup=kb, parse_mode="Markdown")
         return
@@ -1200,7 +1227,16 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     try:
         for b in bookings_page:
             assignment = session.query(Assignment).filter_by(booking_id=b.id).first()
-            priest_tag = f"@{assignment.priest_username}" if assignment and getattr(assignment, "priest_username", None) else "Nessuno."
+
+            # 🔹 Recupera il sacerdote dal DB per mostrare il tag
+            priest_tag = "Nessuno."
+            if assignment and getattr(assignment, "priest_telegram_id", None):
+                priest = session.query(Priest).filter(Priest.telegram_id == assignment.priest_telegram_id).first()
+                if priest and priest.username:
+                    priest_tag = f"@{priest.username}"
+                else:
+                    priest_tag = str(assignment.priest_telegram_id)
+
             secretary_tag = f"@{b.secretary_username}" if getattr(b, "secretary_username", None) else "Nessun contatto presente."
             timestamp = b.created_at.strftime("%d/%m/%Y %H:%M") if getattr(b, "created_at", None) else "-"
 
@@ -1218,10 +1254,8 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     finally:
         session.close()
 
-
     text = "\n".join(lines) + f"\n\n📄 Pagina {page}/{total_pages}"
 
-    # 🔹 Bottoni su più righe
     keyboard = []
     nav_buttons = []
     if page > 1:
@@ -1229,12 +1263,10 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if page < total_pages:
         nav_buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"bookings_page_{page+1}_{filtro or 'all'}"))
     if nav_buttons:
-        keyboard.append(nav_buttons)  # prima riga: paginazione
+        keyboard.append(nav_buttons)
 
-    # seconda riga: torna al pannello principale
     keyboard.append([InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")])
 
-    # terza riga: rimozione multipla
     ids_page = ",".join(str(b.id) for b in bookings_page)
     keyboard.append([InlineKeyboardButton("🗑 Rimuovi queste prenotazioni", callback_data=f"confirm_remove_{ids_page}")])
 
@@ -1321,8 +1353,9 @@ async def weekly_report(app):
         per_priest = {}
         for b in completed:
             a = session.query(Assignment).filter(Assignment.booking_id == b.id).first()
-            pid = a.priest_telegram_id if a else "N/A"
-            per_priest[pid] = per_priest.get(pid, 0) + 1
+            pid = a.priest_telegram_id if a else None
+            if pid:
+                per_priest[pid] = per_priest.get(pid, 0) + 1
 
         # Conteggio per sacramento
         per_sacrament = {}
@@ -1350,7 +1383,9 @@ async def weekly_report(app):
         ]
         if per_priest:
             for pid, num in sorted(per_priest.items(), key=lambda x: x[1], reverse=True):
-                lines.append(f"- 🙏 Sacerdote **{pid}**: {num}")
+                priest = session.query(Priest).filter(Priest.telegram_id == pid).first()
+                priest_tag = f"@{priest.username}" if priest and priest.username else str(pid)
+                lines.append(f"- 🙏 Sacerdote **{priest_tag}**: {num}")
         else:
             lines.append("ℹ️ Nessun sacramento completato dai sacerdoti questa settimana.")
 
@@ -1370,6 +1405,7 @@ async def weekly_report(app):
 
     finally:
         session.close()
+
 
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
