@@ -1016,32 +1016,79 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
     try:
         if mode == "fedele":
             filtro = update.message.text.strip()
-            bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{filtro}%")).order_by(Booking.id.desc()).all()
-            await _send_paginated_bookings(update.message, bookings, f"📋 Prenotazioni del fedele '{filtro}'", filtro, page=1)
+            bookings = session.query(Booking).filter(
+                Booking.nickname_mc.ilike(f"%{filtro}%")
+            ).order_by(Booking.id.desc()).all()
+
+            if bookings:
+                await _send_paginated_bookings(
+                    update.message,
+                    bookings,
+                    f"📋 Prenotazioni del fedele '{filtro}'",
+                    filtro,
+                    page=1
+                )
+            else:
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
+                ])
+                await update.message.reply_text(
+                    f"❌ Nessuna prenotazione trovata per il fedele **{filtro}**.",
+                    reply_markup=kb,
+                    parse_mode="Markdown"
+                )
 
         elif mode == "id":
             try:
                 booking_id = int(update.message.text.strip())
             except ValueError:
-                await update.message.reply_text("❌ Devi inserire un ID numerico valido.", parse_mode="Markdown")
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
+                ])
+                await update.message.reply_text(
+                    "❌ Devi inserire un ID numerico valido.",
+                    reply_markup=kb,
+                    parse_mode="Markdown"
+                )
                 return
+
             booking = session.query(Booking).get(booking_id)
             if booking:
-                await _send_paginated_bookings(update.message, [booking], f"📋 Prenotazione #{booking_id}", str(booking_id), page=1)
+                await _send_paginated_bookings(
+                    update.message,
+                    [booking],
+                    f"📋 Prenotazione #{booking_id}",
+                    str(booking_id),
+                    page=1
+                )
             else:
-                await update.message.reply_text("❌ Nessuna prenotazione trovata con questo ID.", parse_mode="Markdown")
-
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
+                ])
+                await update.message.reply_text(
+                    f"❌ Nessuna prenotazione trovata con ID **{booking_id}**.",
+                    reply_markup=kb,
+                    parse_mode="Markdown"
+                )
     finally:
         session.close()
+
     context.user_data["search_mode"] = None
+
 
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
         msg = f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Nessuna prenotazione trovata per **{titolo}**."
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
+        ])
+
+        # Se arriva da un messaggio normale → reply_text
         if isinstance(target, Message):
-            await target.reply_text(msg, parse_mode="Markdown")
+            await target.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
+        # Se arriva da un callback query → edit_message_text (sostituisce il messaggio)
         elif isinstance(target, CallbackQuery):
-            await target.edit_message_text(msg, parse_mode="Markdown")
+            await target.edit_message_text(msg, reply_markup=kb, parse_mode="Markdown")
         return
 
     per_page = 5
@@ -1073,6 +1120,7 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
             )
     finally:
         session.close()
+
 
     text = "\n".join(lines) + f"\n\n📄 Pagina {page}/{total_pages}"
 
