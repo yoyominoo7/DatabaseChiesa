@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     # Avvia il bot in modalità webhook
     port = int(os.environ.get("PORT", 5000))
-    token = os.environ["BOT_TOKEN"]
+    token = os.environ["TELEGRAM_BOT_TOKEN"]
     external_url = os.environ["RENDER_EXTERNAL_URL"]
 
     app.run_webhook(
