@@ -941,8 +941,11 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
         if data.startswith("filter_"):
             filtro = data.replace("filter_", "")
             if filtro in STATUS:
+                # salva contesto: lista per stato
+                context.user_data["last_list"] = {"kind": "status", "status": filtro, "title": f"📋 Prenotazioni {filtro.upper()}"}
                 bookings = session.query(Booking).filter(Booking.status == filtro).order_by(Booking.id.desc()).all()
                 await _send_paginated_bookings(query, bookings, f"📋 Prenotazioni {filtro.upper()}", filtro, page=1)
+
             elif filtro == "priests":
                 priests = session.query(Priest).all()
                 buttons = [[InlineKeyboardButton(f"@{p.username or p.telegram_id}", callback_data=f"priest_{p.telegram_id}")]
@@ -969,10 +972,65 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
 
         elif data.startswith("priestfilter_"):
             _, priest_id, status = data.split("_")
-            assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == int(priest_id)).all()
+            priest_id = int(priest_id)
+            # salva contesto: lista per sacerdote + stato
+            context.user_data["last_list"] = {"kind": "priest", "priest_id": priest_id, "status": status, "title": f"📋 Prenotazioni sacerdote {priest_id} [{status}]"}
+            assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == priest_id).all()
             bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
             bookings = [b for b in bookings if b and b.status == status]
             await _send_paginated_bookings(query, bookings, f"📋 Prenotazioni sacerdote {priest_id} [{status}]", f"{priest_id}", page=1)
+
+        elif data.startswith("bookings_page_"):
+            # gestione cambio pagina
+            _, page_str, filtro = data.split("_", 2)
+            page = int(page_str)
+
+            last = context.user_data.get("last_list") or {}
+            kind = last.get("kind")
+
+            # ricostruisci lista in base al contesto salvato
+            if kind == "status":
+                status = last.get("status")
+                bookings = session.query(Booking).filter(Booking.status == status).order_by(Booking.id.desc()).all()
+                title = last.get("title") or f"📋 Prenotazioni {status.upper()}"
+                await _send_paginated_bookings(query, bookings, title, status, page=page)
+
+            elif kind == "priest":
+                priest_id = last.get("priest_id")
+                status = last.get("status")
+                assigns = session.query(Assignment).filter(Assignment.priest_telegram_id == int(priest_id)).all()
+                bookings = [session.query(Booking).get(a.booking_id) for a in assigns if session.query(Booking).get(a.booking_id)]
+                bookings = [b for b in bookings if b and b.status == status]
+                title = last.get("title") or f"📋 Prenotazioni sacerdote {priest_id} [{status}]"
+                await _send_paginated_bookings(query, bookings, title, f"{priest_id}", page=page)
+
+            elif kind == "search_nick":
+                term = last.get("term") or ""
+                bookings = session.query(Booking).filter(Booking.nickname_mc.ilike(f"%{term}%")).order_by(Booking.id.desc()).all()
+                title = last.get("title") or f"📋 Prenotazioni del fedele '{term}'"
+                await _send_paginated_bookings(query, bookings, title, term, page=page)
+
+            elif kind == "search_id":
+                bid = last.get("booking_id")
+                booking = session.query(Booking).get(bid) if bid else None
+                bookings = [booking] if booking else []
+                title = last.get("title") or f"📋 Prenotazione #{bid}"
+                await _send_paginated_bookings(query, bookings, title, str(bid or ""), page=page)
+
+            else:
+                # fallback: torna al main
+                await query.edit_message_text(
+                    "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
+                        [InlineKeyboardButton("📌 Assegnate", callback_data="filter_assigned")],
+                        [InlineKeyboardButton("✅ Completate", callback_data="filter_completed")],
+                        [InlineKeyboardButton("🙏 Per sacerdote", callback_data="filter_priests")],
+                        [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
+                        [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
+                    ]),
+                    parse_mode="Markdown"
+                )
 
         elif data == "back_main":
             kb = InlineKeyboardMarkup([
@@ -1003,6 +1061,12 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             )
             context.user_data["search_mode"] = "id"
 
+        elif data == "close_panel":
+            await query.edit_message_text(
+                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Pannello prenotazioni chiuso.",
+                parse_mode="Markdown"
+            )
+
     finally:
         session.close()
 
@@ -1021,6 +1085,13 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
             ).order_by(Booking.id.desc()).all()
 
             if bookings:
+                # 🔹 Salva contesto per la paginazione
+                context.user_data["last_list"] = {
+                    "kind": "search_nick",
+                    "term": filtro,
+                    "title": f"📋 Prenotazioni del fedele '{filtro}'"
+                }
+
                 await _send_paginated_bookings(
                     update.message,
                     bookings,
@@ -1054,6 +1125,13 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
 
             booking = session.query(Booking).get(booking_id)
             if booking:
+                # 🔹 Salva contesto per la paginazione
+                context.user_data["last_list"] = {
+                    "kind": "search_id",
+                    "booking_id": booking_id,
+                    "title": f"📋 Prenotazione #{booking_id}"
+                }
+
                 await _send_paginated_bookings(
                     update.message,
                     [booking],
@@ -1073,7 +1151,9 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
     finally:
         session.close()
 
+    # 🔹 Reset modalità ricerca
     context.user_data["search_mode"] = None
+
 
 
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
@@ -1318,7 +1398,7 @@ def build_application():
     # 🔹 Nuovi handler per pannello avanzato prenotazioni
     app.add_handler(CallbackQueryHandler(
         lista_prenotazioni_callback,
-        pattern="^(filter_|priest_|priestfilter_|back_main|search_fedele|search_id)"
+        pattern="^(filter_|priest_|priestfilter_|bookings_page_|back_main|search_fedele|search_id|close_panel)"
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lista_prenotazioni_search))
 
