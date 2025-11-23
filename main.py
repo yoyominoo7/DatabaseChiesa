@@ -30,13 +30,19 @@ if __name__ == "__main__":
     # Avvia il bot in modalità webhook
     port = int(os.environ.get("PORT", 5000))
     token = os.environ["TELEGRAM_BOT_TOKEN"]
-    external_url = os.environ["RENDER_EXTERNAL_URL"]
+
+    # ⚠️ Qui devi mettere l'URL pubblico del tuo servizio Render
+    # Esempio: https://nome-servizio.onrender.com
+    external_url = os.environ.get("RENDER_EXTERNAL_URL")
+
+    webhook_url = f"{external_url}/{token}"
+    print("Webhook URL che sto passando a Telegram:", webhook_url)
 
     app.run_webhook(
         listen="0.0.0.0",
         port=port,
         url_path=token,
-        webhook_url=f"https://{external_url}/{token}",
+        webhook_url=webhook_url,
         drop_pending_updates=True
     )
 
