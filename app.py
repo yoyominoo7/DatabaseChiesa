@@ -975,7 +975,19 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             await _send_paginated_bookings(query, bookings, f"📋 Prenotazioni sacerdote {priest_id} [{status}]", f"{priest_id}", page=1)
 
         elif data == "back_main":
-            await lista_prenotazioni(update, context)
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
+                [InlineKeyboardButton("📌 Assegnate", callback_data="filter_assigned")],
+                [InlineKeyboardButton("✅ Completate", callback_data="filter_completed")],
+                [InlineKeyboardButton("🙏 Per sacerdote", callback_data="filter_priests")],
+                [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
+                [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
+            ])
+            await query.edit_message_text(
+                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
+                reply_markup=kb,
+                parse_mode="Markdown"
+            )
 
         elif data == "search_fedele":
             await query.edit_message_text(
@@ -993,6 +1005,7 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
 
     finally:
         session.close()
+
 
 async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = context.user_data.get("search_mode")
@@ -1047,7 +1060,6 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
             secretary_tag = f"@{b.secretary_username}" if getattr(b, "secretary_username", None) else "Nessun contatto presente."
             timestamp = b.created_at.strftime("%d/%m/%Y %H:%M") if getattr(b, "created_at", None) else "-"
 
-            # Riga descrittiva
             lines.append(
                 f"📌 Prenotazione #{b.id} [{b.status.upper()}]\n"
                 f"• ✝️ Sacramento/i: {b.sacrament.replace('_',' ')}\n"
@@ -1064,21 +1076,24 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
 
     text = "\n".join(lines) + f"\n\n📄 Pagina {page}/{total_pages}"
 
-    # Bottoni di navigazione
+    # 🔹 Bottoni su più righe
+    keyboard = []
     nav_buttons = []
     if page > 1:
         nav_buttons.append(InlineKeyboardButton("⬅️ Indietro", callback_data=f"bookings_page_{page-1}_{filtro or 'all'}"))
     if page < total_pages:
         nav_buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"bookings_page_{page+1}_{filtro or 'all'}"))
+    if nav_buttons:
+        keyboard.append(nav_buttons)  # prima riga: paginazione
 
-    # Bottone per tornare al pannello principale
-    nav_buttons.append(InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main"))
+    # seconda riga: torna al pannello principale
+    keyboard.append([InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")])
 
-    # Bottone di rimozione multipla (per la pagina corrente)
+    # terza riga: rimozione multipla
     ids_page = ",".join(str(b.id) for b in bookings_page)
-    nav_buttons.append(InlineKeyboardButton("🗑 Rimuovi queste prenotazioni", callback_data=f"confirm_remove_{ids_page}"))
+    keyboard.append([InlineKeyboardButton("🗑 Rimuovi queste prenotazioni", callback_data=f"confirm_remove_{ids_page}")])
 
-    kb = InlineKeyboardMarkup([nav_buttons])
+    kb = InlineKeyboardMarkup(keyboard)
 
     if isinstance(target, Message):
         await target.reply_text(text, reply_markup=kb, parse_mode="Markdown")
