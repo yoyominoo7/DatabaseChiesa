@@ -1099,11 +1099,14 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
 
         elif data == "close_panel":
             new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Pannello prenotazioni chiuso."
+            # controllo per evitare "Message is not modified"
             if query.message.text != new_text:
                 await query.edit_message_text(
                     new_text,
                     parse_mode="Markdown"
                 )
+    finally:
+        session.close()
 
 
 
