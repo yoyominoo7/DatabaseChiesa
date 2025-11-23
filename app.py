@@ -1116,6 +1116,20 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
     if not mode:
         return
 
+    # 🔹 Cancella il messaggio di prompt se esiste
+    prompt_id = context.user_data.get("last_prompt_message_id")
+    if prompt_id:
+        try:
+            await update.message.bot.delete_message(
+                chat_id=update.effective_chat.id,
+                message_id=prompt_id
+            )
+        except Exception as e:
+            # Non bloccare il flusso se non riesce a cancellare
+            print("Errore cancellando il prompt:", e)
+        # resetta l'ID del prompt
+        context.user_data["last_prompt_message_id"] = None
+
     session = SessionLocal()
     try:
         if mode == "fedele":
@@ -1125,7 +1139,6 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
             ).order_by(Booking.id.desc()).all()
 
             if bookings:
-                # 🔹 Salva contesto per la paginazione
                 context.user_data["last_list"] = {
                     "kind": "search_nick",
                     "term": filtro,
@@ -1165,7 +1178,6 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
 
             booking = session.query(Booking).get(booking_id)
             if booking:
-                # 🔹 Salva contesto per la paginazione
                 context.user_data["last_list"] = {
                     "kind": "search_id",
                     "booking_id": booking_id,
@@ -1193,6 +1205,7 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
 
     # 🔹 Reset modalità ricerca
     context.user_data["search_mode"] = None
+
 
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
