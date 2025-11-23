@@ -1265,16 +1265,12 @@ def build_application():
 
     # Paginazioni
     app.add_handler(CallbackQueryHandler(mie_assegnazioni_page, pattern=r"^assign_page_\d+$"))
-    app.add_handler(CallbackQueryHandler(lista_prenotazioni_page, pattern=r"^bookings_page_\d+_.+$"))
 
     # Scheduler
     scheduler = AsyncIOScheduler(timezone="UTC")
     scheduler.add_job(check_sla, "interval", hours=1, args=[app])
     scheduler.add_job(weekly_report, "cron", day_of_week="sun", hour=23, minute=55, args=[app])
     scheduler.start()
-
-    return app
-
 
     return app
 
