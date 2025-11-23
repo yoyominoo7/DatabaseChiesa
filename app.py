@@ -1046,6 +1046,8 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
             priest_tag = f"@{assignment.priest_username}" if assignment and getattr(assignment, "priest_username", None) else "Nessuno."
             secretary_tag = f"@{b.secretary_username}" if getattr(b, "secretary_username", None) else "Nessun contatto presente."
             timestamp = b.created_at.strftime("%d/%m/%Y %H:%M") if getattr(b, "created_at", None) else "-"
+
+            # Riga descrittiva
             lines.append(
                 f"📌 Prenotazione #{b.id} [{b.status.upper()}]\n"
                 f"• ✝️ Sacramento/i: {b.sacrament.replace('_',' ')}\n"
@@ -1062,24 +1064,79 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
 
     text = "\n".join(lines) + f"\n\n📄 Pagina {page}/{total_pages}"
 
-    buttons = []
+    # Bottoni di navigazione
+    nav_buttons = []
     if page > 1:
-        buttons.append(InlineKeyboardButton("⬅️ Indietro", callback_data=f"bookings_page_{page-1}_{filtro or 'all'}"))
+        nav_buttons.append(InlineKeyboardButton("⬅️ Indietro", callback_data=f"bookings_page_{page-1}_{filtro or 'all'}"))
     if page < total_pages:
-        buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"bookings_page_{page+1}_{filtro or 'all'}"))
+        nav_buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"bookings_page_{page+1}_{filtro or 'all'}"))
 
     # Bottone per tornare al pannello principale
-    nav_buttons = []
-    if buttons:
-        nav_buttons.append(buttons)
-    nav_buttons.append([InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")])
+    nav_buttons.append(InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main"))
 
-    kb = InlineKeyboardMarkup(nav_buttons)
+    # Bottone di rimozione multipla (per la pagina corrente)
+    ids_page = ",".join(str(b.id) for b in bookings_page)
+    nav_buttons.append(InlineKeyboardButton("🗑 Rimuovi queste prenotazioni", callback_data=f"confirm_remove_{ids_page}"))
+
+    kb = InlineKeyboardMarkup([nav_buttons])
 
     if isinstance(target, Message):
         await target.reply_text(text, reply_markup=kb, parse_mode="Markdown")
     elif isinstance(target, CallbackQuery):
         await target.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+
+# 🔎 Callback per conferma/annulla rimozione prenotazioni
+async def handle_remove_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+    session = SessionLocal()
+    try:
+        if data.startswith("confirm_remove_"):
+            ids_str = data.replace("confirm_remove_", "")
+            booking_ids = [int(x) for x in ids_str.split(",")]
+
+            removed, not_found = [], []
+            for booking_id in booking_ids:
+                booking = session.query(Booking).get(booking_id)
+                if not booking:
+                    not_found.append(booking_id)
+                    continue
+
+                # Elimina assignment ed event log collegati
+                session.query(Assignment).filter_by(booking_id=booking.id).delete()
+                session.query(EventLog).filter_by(booking_id=booking.id).delete()
+                session.delete(booking)
+                removed.append(booking_id)
+
+            session.commit()
+
+            # Messaggio finale
+            msg_parts = []
+            if removed:
+                msg_parts.append(
+                    f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✅ Prenotazioni **rimosse**: {', '.join(map(str, removed))}"
+                )
+            if not_found:
+                msg_parts.append(
+                    f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Prenotazioni **non trovate**: {', '.join(map(str, not_found))}"
+                )
+
+            await query.edit_message_text(
+                "\n".join(msg_parts) if msg_parts else
+                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Nessuna prenotazione rimossa.",
+                parse_mode="Markdown"
+            )
+
+        elif data == "cancel_remove":
+            await query.edit_message_text(
+                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Rimozione **annullata**.",
+                parse_mode="Markdown"
+            )
+
+    finally:
+        session.close()
 
 
 async def weekly_report(app):
