@@ -982,13 +982,29 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
 
         elif data.startswith("bookings_page_"):
             # gestione cambio pagina
-            _, page_str, filtro = data.split("_", 2)
-            page = int(page_str)
+            payload = data[len("bookings_page_"):]  # es: "3_pending"
+            try:
+                page_part, filtro = payload.split("_", 1)  # → ["3", "pending"]
+                page = int(page_part)
+            except (ValueError, IndexError):
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
+                    [InlineKeyboardButton("📌 Assegnate", callback_data="filter_assigned")],
+                    [InlineKeyboardButton("✅ Completate", callback_data="filter_completed")],
+                    [InlineKeyboardButton("🙏 Per sacerdote", callback_data="filter_priests")],
+                    [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
+                    [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
+                ])
+                await query.edit_message_text(
+                    "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
+                    reply_markup=kb,
+                    parse_mode="Markdown"
+                )
+                return
 
             last = context.user_data.get("last_list") or {}
             kind = last.get("kind")
 
-            # ricostruisci lista in base al contesto salvato
             if kind == "status":
                 status = last.get("status")
                 bookings = session.query(Booking).filter(Booking.status == status).order_by(Booking.id.desc()).all()
@@ -1018,19 +1034,20 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 await _send_paginated_bookings(query, bookings, title, str(bid or ""), page=page)
 
             else:
-                # fallback: torna al main
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
+                    [InlineKeyboardButton("📌 Assegnate", callback_data="filter_assigned")],
+                    [InlineKeyboardButton("✅ Completate", callback_data="filter_completed")],
+                    [InlineKeyboardButton("🙏 Per sacerdote", callback_data="filter_priests")],
+                    [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
+                    [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
+                ])
                 await query.edit_message_text(
                     "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
-                        [InlineKeyboardButton("📌 Assegnate", callback_data="filter_assigned")],
-                        [InlineKeyboardButton("✅ Completate", callback_data="filter_completed")],
-                        [InlineKeyboardButton("🙏 Per sacerdote", callback_data="filter_priests")],
-                        [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
-                        [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
-                    ]),
+                    reply_markup=kb,
                     parse_mode="Markdown"
                 )
+
 
         elif data == "back_main":
             kb = InlineKeyboardMarkup([
