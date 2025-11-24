@@ -351,7 +351,7 @@ async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• 👤 Contatto Telegram: **{context.user_data['rp_name']}**\n"
             f"• 🎮 Nick: **{context.user_data['nickname_mc']}**\n"
             f"• ✝️ Sacramenti: **{sacrament_display.replace('_',' ')}**\n"
-            f"• 📝 Note: **{notes or 'nessuna nota presente.'}**"
+            f"• 📝 Note: {notes or 'nessuna nota presente.'}"
         ),
         reply_markup=confirm_keyboard(),
         parse_mode="Markdown"
@@ -411,7 +411,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• 👤 Contatto Telegram: **{booking.rp_name}**\n"
             f"• 🎮 Nick: **{booking.nickname_mc}**\n"
             f"• ✝️ Sacramenti: **{sacrament_display.replace('_',' ')}**\n"
-            f"• 📝 Note: **{booking.notes or 'nessuna nota presente.'}**",
+            f"• 📝 Note: {booking.notes or 'nessuna nota presente.'}",
             parse_mode="Markdown"
         )
 
@@ -424,7 +424,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• 👤 Contatto Telegram: **{booking.rp_name}**\n"
             f"• 🎮 Nick: **{booking.nickname_mc}**\n"
             f"• ✝️ Sacramenti: **{sacrament_display.replace('_',' ')}**\n"
-            f"• 📝 Note: **{booking.notes or 'Nessuna nota'}**\n\n"
+            f"• 📝 Note: {booking.notes or 'Nessuna nota'}\n\n"
             f"📌 Prenotazione registrata dal segretario: **{secretary_tag}**\n\n"
             f"⚠️ Ricorda di verificare i campi inseriti e di assegnarla il prima possibile a un sacerdote.",
             parse_mode="Markdown"
