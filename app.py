@@ -496,7 +496,9 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
 
-    _, booking_id, priest_id = query.data.split("_")
+    # Rimuovi il prefisso "do_assign_"
+    data = query.data.replace("do_assign_", "")
+    booking_id, priest_id = data.split("_")
     booking_id = int(booking_id)
     priest_id = int(priest_id)
 
@@ -521,7 +523,6 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             assigned_by=update.effective_user.id,
         )
         session.add(assign)
-
         session.add(EventLog(
             booking_id=booking.id,
             actor_id=update.effective_user.id,
@@ -529,7 +530,6 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             details=f"to @{priest.username}"
         ))
         session.commit()
-
         # 🔹 Elimina messaggio con lista sacerdoti
         assign_msg_id = context.user_data.get("assign_msg_id")
         if assign_msg_id:
@@ -548,7 +548,6 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Hey sacerdote! Ti è stata <b>assegnata una nuova prenotazione</b> (#{booking.id}).\n➡️ Utilizza <code>/mie_assegnazioni</code> per i dettagli.",
             parse_mode="HTML"
         )
-
         # 🔹 Pianifica job di notifica 48h
         context.job_queue.run_once(
             notify_uncompleted,
