@@ -2,7 +2,7 @@ import os
 import logging
 from datetime import datetime, timedelta, timezone, time
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, BigInteger
-
+from telegram.helpers import escape_markdown
 from telegram import (
     Update,
     InlineKeyboardMarkup,
@@ -343,18 +343,25 @@ async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         notes = ""
     context.user_data["notes"] = notes
 
-    sacrament_display = ", ".join(context.user_data["sacraments"])
+    # 🔹 Escape dei campi variabili
+    rp_name = escape_markdown(context.user_data['rp_name'], version=2)
+    nickname_mc = escape_markdown(context.user_data['nickname_mc'], version=2)
+    sacrament_display = escape_markdown(", ".join(context.user_data["sacraments"]).replace("_"," "), version=2)
+    safe_notes = escape_markdown(notes or 'nessuna nota presente.', version=2)
+
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Sei arrivato alla fine della registrazione.\n\nQui sotto è presente il **resoconto** delle informazioni scritte da te. Controlla che siano giuste e conferma la tua registrazione:\n\n"
-            f"• 👤 Contatto Telegram: **{context.user_data['rp_name']}**\n"
-            f"• 🎮 Nick: **{context.user_data['nickname_mc']}**\n"
-            f"• ✝️ Sacramenti: **{sacrament_display.replace('_',' ')}**\n"
-            f"• 📝 Note: {notes or 'nessuna nota presente.'}"
+            f"*𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄* ⚓️\n\n"
+            f"📋 Sei arrivato alla fine della registrazione.\n\n"
+            f"Qui sotto è presente il *resoconto* delle informazioni scritte da te. Controlla che siano giuste e conferma la tua registrazione:\n\n"
+            f"• 👤 Contatto Telegram: *{rp_name}*\n"
+            f"• 🎮 Nick: *{nickname_mc}*\n"
+            f"• ✝️ Sacramenti: *{sacrament_display}*\n"
+            f"• 📝 Note: *{safe_notes}*"
         ),
         reply_markup=confirm_keyboard(),
-        parse_mode="Markdown"
+        parse_mode="MarkdownV2"
     )
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_CONFIRM
@@ -365,8 +372,8 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     if query.data == "cancel":
         await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ La prenotazione è stata **annullata con successo**!\n\n➡️ Se vuoi effettuarla di nuovo digita `/prenota_ingame`",
-            parse_mode="Markdown"
+            "*𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄* ⚓️\n\n❌ La prenotazione è stata *annullata con successo*!\n\n➡️ Se vuoi effettuarla di nuovo digita `/prenota_ingame`",
+            parse_mode="MarkdownV2"
         )
         return ConversationHandler.END
     if query.data != "confirm":
@@ -376,8 +383,8 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = user.id
     if not is_secretary(user_id):
         await query.edit_message_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Non hai il **permesso** per eseguire questa azione.",
-            parse_mode="Markdown"
+            "*𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄* ⚓️\n\n❌ Non hai il *permesso* per eseguire questa azione.",
+            parse_mode="MarkdownV2"
         )
         return ConversationHandler.END
 
@@ -392,7 +399,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sacrament=sacrament_display,
             notes=context.user_data["notes"],
             status="pending",
-            secretary_username=user.username or f"ID:{user.id}"   # 👈 aggiunto
+            secretary_username=user.username or f"ID:{user.id}"
         )
         session.add(booking)
         session.commit()
@@ -405,34 +412,40 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ))
         session.commit()
 
-        # Messaggio di conferma al segretario
+        # 🔹 Escape dei campi variabili
+        rp_name = escape_markdown(booking.rp_name, version=2)
+        nickname_mc = escape_markdown(booking.nickname_mc, version=2)
+        sacrament_display_safe = escape_markdown(sacrament_display.replace("_"," "), version=2)
+        safe_notes = escape_markdown(booking.notes or 'nessuna nota presente.', version=2)
+
         await query.edit_message_text(
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✅ La tua prenotazione è stata **registrata con successo**! (ID #{booking.id})\n\n📋 Resoconto delle informazioni inserite:\n\n"
-            f"• 👤 Contatto Telegram: **{booking.rp_name}**\n"
-            f"• 🎮 Nick: **{booking.nickname_mc}**\n"
-            f"• ✝️ Sacramenti: **{sacrament_display.replace('_',' ')}**\n"
-            f"• 📝 Note: {booking.notes or 'nessuna nota presente.'}",
-            parse_mode="Markdown"
+            f"*𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄* ⚓️\n\n✅ La tua prenotazione è stata *registrata con successo*! (ID #{booking.id})\n\n📋 Resoconto delle informazioni inserite:\n\n"
+            f"• 👤 Contatto Telegram: *{rp_name}*\n"
+            f"• 🎮 Nick: *{nickname_mc}*\n"
+            f"• ✝️ Sacramenti: *{sacrament_display_safe}*\n"
+            f"• 📝 Note: *{safe_notes}*",
+            parse_mode="MarkdownV2"
         )
 
         secretary_tag = f"@{user.username}" if user.username else f"ID:{user.id}"
+        secretary_tag_safe = escape_markdown(secretary_tag, version=2)
 
-        # Notifica alla Direzione
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📢 È presente una nuova **prenotazione**! (ID #{booking.id})\n\n"
-            f"• 👤 Contatto Telegram: **{booking.rp_name}**\n"
-            f"• 🎮 Nick: **{booking.nickname_mc}**\n"
-            f"• ✝️ Sacramenti: **{sacrament_display.replace('_',' ')}**\n"
-            f"• 📝 Note: {booking.notes or 'Nessuna nota'}\n\n"
-            f"📌 Prenotazione registrata dal segretario: **{secretary_tag}**\n\n"
+            f"*𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄* ⚓️\n\n📢 È presente una nuova *prenotazione*! (ID #{booking.id})\n\n"
+            f"• 👤 Contatto Telegram: *{rp_name}*\n"
+            f"• 🎮 Nick: *{nickname_mc}*\n"
+            f"• ✝️ Sacramenti: *{sacrament_display_safe}*\n"
+            f"• 📝 Note: *{safe_notes}*\n\n"
+            f"📌 Prenotazione registrata dal segretario: *{secretary_tag_safe}*\n\n"
             f"⚠️ Ricorda di verificare i campi inseriti e di assegnarla il prima possibile a un sacerdote.",
-            parse_mode="Markdown"
+            parse_mode="MarkdownV2"
         )
 
         return ConversationHandler.END
     finally:
         session.close()
+        
 
 # ---- DIREZIONE: ASSEGNAZIONE ----
 @role_required(is_director, "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Non hai il permesso per eseguire questo comando.")
