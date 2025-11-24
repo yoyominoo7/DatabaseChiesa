@@ -1111,8 +1111,10 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                     new_text,
                     parse_mode="HTML"
                 )
-        finally:
-            session.close()
+
+    finally:
+        session.close()
+
 
 async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = context.user_data.get("search_mode")
