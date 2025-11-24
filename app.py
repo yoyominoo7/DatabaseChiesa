@@ -135,7 +135,6 @@ def role_required(check_func, msg="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒�
 # ---- CONVERSATION STATES ----
 IG_RP_NAME, IG_NICK, IG_SACRAMENT, IG_NOTES, IG_CONFIRM = range(5)
 
-# ---- START (solo benvenuto, senza prenotazioni dei fedeli) ----
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         return ConversationHandler.END
@@ -154,8 +153,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Nessun ruolo
     if not roles:
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Non risulti avere un ruolo valido per usare questo bot.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non risulti avere un ruolo valido per usare questo bot.",
+            parse_mode="HTML"
         )
         return ConversationHandler.END
 
@@ -168,9 +167,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Più ruoli → scelta con bottoni (senza opzione "fedele")
     buttons = [[InlineKeyboardButton(r.capitalize(), callback_data=f"role_{r}")] for r in roles]
     await update.message.reply_text(
-        "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🌟 Poiché sei un **VIP della chiesa**, possiedi più ruoli!\n\n👉 Puoi usarne solo uno alla volta: scegli quale messaggio di start ti serve tra quelli indicati qui sotto:",
+        "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🌟 Poiché sei un <b>VIP della chiesa</b>, possiedi più ruoli!\n\n👉 Puoi usarne solo uno alla volta: scegli quale messaggio di start ti serve tra quelli indicati qui sotto:",
         reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     return ConversationHandler.END
 
@@ -186,23 +185,23 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _send_role_welcome(target_message: Message, role: str):
     if role == "sacerdote":
         await target_message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **sacerdote**.\n\n📜 Comandi principali:\n- `/mie_assegnazioni` → controlla i sacramenti che ti vengono assegnati (riceverai notifiche automatiche).\n- `/completa <id prenotazione>` → contrassegna una prenotazione come completata.\n\n⚠️ Ricorda: è tuo dovere verificare quotidianamente le assegnazioni.\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Consiglio degli Anziani**.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da <b>sacerdote</b>.\n\n📜 Comandi principali:\n- <code>/mie_assegnazioni</code> → controlla i sacramenti che ti vengono assegnati (riceverai notifiche automatiche).\n- <code>/completa &lt;id prenotazione&gt;</code> → contrassegna una prenotazione come completata.\n\n⚠️ Ricorda: è tuo dovere verificare quotidianamente le assegnazioni.\n\nSe hai difficoltà o riscontri problemi contatta 👉 <b>Consiglio degli Anziani</b>.",
+            parse_mode="HTML"
         )
     elif role == "segretario":
         await target_message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📖 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **segretario**.\n\n📜 Comandi principali:\n- `/prenota_ingame` → registra ogni sacramento pagato, così potrà essere assegnato a un sacerdote.\n\n⚠️ Non creare prenotazioni false o di prova: rischi di rompere il bot!\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Consiglio degli Anziani**.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📖 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da <b>segretario</b>.\n\n📜 Comandi principali:\n- <code>/prenota_ingame</code> → registra ogni sacramento pagato, così potrà essere assegnato a un sacerdote.\n\n⚠️ Non creare prenotazioni false o di prova: rischi di rompere il bot!\n\nSe hai difficoltà o riscontri problemi contatta 👉 <b>Consiglio degli Anziani</b>.",
+            parse_mode="HTML"
         )
     elif role == "direzione":
         await target_message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n👑 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da **Patriarca**.\n\n📜 Comandi principali:\n- `/assegna <id prenotazione> <@sacerdote>` → assegna una prenotazione a un sacerdote.\n- `/riassegna <id prenotazione> <@sacerdote>` → riassegna una prenotazione già assegnata.\n- `/lista_prenotazioni` → consulta le prenotazioni filtrate:\n   • ⏳ **pending** → prenotazioni in attesa\n   • 📌 **assigned** → prenotazioni assegnate\n   • ✅ **completed** → prenotazioni completate\n   • 👤 **@sacerdote** → prenotazioni di un sacerdote\n   • 🎮 **nick fedele** → prenotazioni di un fedele\n\nSe hai difficoltà o riscontri problemi contatta 👉 **Falco** o **yomino**.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n👑 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da <b>Patriarca</b>.\n\n📜 Comandi principali:\n- <code>/assegna &lt;id prenotazione&gt; &lt;@sacerdote&gt;</code> → assegna una prenotazione a un sacerdote.\n- <code>/riassegna &lt;id prenotazione&gt; &lt;@sacerdote&gt;</code> → riassegna una prenotazione già assegnata.\n- <code>/lista_prenotazioni</code> → consulta le prenotazioni filtrate:\n   • ⏳ <b>pending</b> → prenotazioni in attesa\n   • 📌 <b>assigned</b> → prenotazioni assegnate\n   • ✅ <b>completed</b> → prenotazioni completate\n   • 👤 <b>@sacerdote</b> → prenotazioni di un sacerdote\n   • 🎮 <b>nick fedele</b> → prenotazioni di un fedele\n\nSe hai difficoltà o riscontri problemi contatta 👉 <b>Falco</b> o <b>yomino</b>.",
+            parse_mode="HTML"
         )
     else:
         await target_message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Ruolo non riconosciuto.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Ruolo non riconosciuto.",
+            parse_mode="HTML"
         )
 
 def sacrament_keyboard():
@@ -219,18 +218,18 @@ def confirm_keyboard():
 # ---- INGAME FLOW (SECRETARIES) ----
 @role_required(
     is_secretary,
-    "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Non risulti essere un **segretario**, perciò non puoi eseguire il comando.\n\nSe pensi sia un errore contatta 👉 @LavatiScimmiaInfuocata."
+    "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non risulti essere un <b>segretario</b>, perciò non puoi eseguire il comando.\n\nSe pensi sia un errore contatta 👉 @LavatiScimmiaInfuocata."
 )
 async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Questo comando può essere usato **solo in privato** con il bot.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Questo comando può essere usato <b>solo in privato</b> con il bot.",
+            parse_mode="HTML"
         )
         return ConversationHandler.END
     msg = await update.message.reply_text(
-        "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📝 Per iniziare la procedura di registrazione, inserisci la **@ del fedele** che ha prenotato:",
-        parse_mode="Markdown"
+        "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📝 Per iniziare la procedura di registrazione, inserisci la <b>@ del fedele</b> che ha prenotato:",
+        parse_mode="HTML"
     )
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_RP_NAME
@@ -248,8 +247,8 @@ async def ig_rp_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🎮 Bene! Adesso ti chiedo di inserire il **nickname di Minecraft** del fedele.\n\n➡️ Se si tratta di un matrimonio inserisci il nome dei due coniugi.",
-        parse_mode="Markdown"
+        text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🎮 Bene! Adesso ti chiedo di inserire il <b>nickname di Minecraft</b> del fedele.\n\n➡️ Se si tratta di un matrimonio inserisci il nome dei due coniugi.",
+        parse_mode="HTML"
     )
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_NICK
@@ -269,9 +268,9 @@ async def ig_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
                              one_time_keyboard=False, resize_keyboard=True)
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✝️ Seleziona uno o più **sacramenti**.\n\n➡️ Scrivi **'fine'** quando hai terminato:",
+        text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✝️ Seleziona uno o più <b>sacramenti</b>.\n\n➡️ Scrivi <b>'fine'</b> quando hai terminato:",
         reply_markup=kb,
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     context.user_data["last_prompt_id"] = msg.message_id
     context.user_data["sacraments"] = []
@@ -294,16 +293,16 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not context.user_data["sacraments"]:
             msg = await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ Attenzione, non hai selezionato nessun **sacramento**.\n\n➡️ Riprova:",
+                text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Attenzione, non hai selezionato nessun <b>sacramento</b>.\n\n➡️ Riprova:",
                 reply_markup=kb,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             context.user_data["last_prompt_id"] = msg.message_id
             return IG_SACRAMENT
         msg = await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Siamo arrivati quasi alla fine.\n\n➡️ Inserisci delle **note aggiuntive** (se non ci sono scrivi 'no'):",
-            parse_mode="Markdown"
+            text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📋 Siamo arrivati quasi alla fine.\n\n➡️ Inserisci delle <b>note aggiuntive</b> (se non ci sono scrivi 'no'):",
+            parse_mode="HTML"
         )
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_NOTES
@@ -311,9 +310,9 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if s not in SACRAMENTS:
         msg = await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Il sacramento inserito non è **valido**.\n\n➡️ Riprova:",
+            text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Il sacramento inserito non è <b>valido</b>.\n\n➡️ Riprova:",
             reply_markup=kb,
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_SACRAMENT
@@ -321,9 +320,9 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["sacraments"].append(s)
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✅ Il sacramento è stato **aggiunto con successo**!\n\n➡️ Selezionane un altro oppure scrivi **'fine'**:",
+        text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ Il sacramento è stato <b>aggiunto con successo</b>!\n\n➡️ Selezionane un altro oppure scrivi <b>'fine'</b>:",
         reply_markup=kb,
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_SACRAMENT
@@ -451,20 +450,20 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
 
 # ---- DIREZIONE: ASSEGNAZIONE ----
-@role_required(is_director, "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Non hai il permesso per eseguire questo comando.")
+@role_required(is_director, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il permesso per eseguire questo comando.")
 async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != DIRECTORS_GROUP_ID:
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Questo comando può essere usato **solo nel gruppo Direzione**.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Questo comando può essere usato <b>solo nel gruppo Direzione</b>.",
+            parse_mode="HTML"
         )
         return
 
     args = update.message.text.split()
     if len(args) < 3:
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ Sintassi errata!\n\n➡️ Utilizzo corretto: `/assegna <id richiesta> <@username>`",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Sintassi errata!\n\n➡️ Utilizzo corretto: <code>/assegna &lt;id richiesta&gt; &lt;@username&gt;</code>",
+            parse_mode="HTML"
         )
         return
 
@@ -473,8 +472,8 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not target.startswith("@"):
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ Devi specificare l'**@username** del sacerdote (es. @nomeutente).",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Devi specificare l'<b>@username</b> del sacerdote (es. @nomeutente).",
+            parse_mode="HTML"
         )
         return
 
@@ -485,8 +484,8 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         priest = session.query(Priest).filter_by(username=username).first()
         if not priest:
             await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ L'**username** inserito non è valido o il sacerdote non è registrato.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ L'<b>username</b> inserito non è valido o il sacerdote non è registrato.",
+                parse_mode="HTML"
             )
             return
 
@@ -494,33 +493,31 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not is_priest(priest_id):
             await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ L'utente indicato non è registrato come **sacerdote**.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ L'utente indicato non è registrato come <b>sacerdote</b>.",
+                parse_mode="HTML"
             )
             return
 
         booking = session.query(Booking).get(booking_id)
         if not booking:
             await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ La **prenotazione** inserita risulta inesistente.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ La <b>prenotazione</b> inserita risulta inesistente.",
+                parse_mode="HTML"
             )
             return
 
         existing_assign = session.query(Assignment).filter_by(booking_id=booking.id).first()
         if booking.status == "assigned" or existing_assign:
             await update.message.reply_text(
-                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ La prenotazione #{booking.id} è già stata **assegnata**.\n➡️ Se vuoi riassegnarla digita `/riassegna`.",
-                parse_mode="Markdown"
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ La prenotazione #{booking.id} è già stata <b>assegnata</b>.\n➡️ Se vuoi riassegnarla digita <code>/riassegna</code>.",
+                parse_mode="HTML"
             )
             return
 
-        # Aggiorna stato prenotazione
         booking.status = "assigned"
         booking.updated_at = datetime.now(timezone.utc)
         session.add(booking)
 
-        # Salva assegnazione
         assign = Assignment(
             booking_id=booking.id,
             priest_telegram_id=priest_id,
@@ -538,16 +535,15 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.commit()
 
         await update.message.reply_text(
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✅ Prenotazione #{booking.id} **assegnata** a @{username}.",
-            parse_mode="Markdown"
+            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ Prenotazione #{booking.id} <b>assegnata</b> a @{username}.",
+            parse_mode="HTML"
         )
         await context.bot.send_message(
             priest_id,
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Hey sacerdote! Ti è stata **assegnata una nuova prenotazione** (#{booking.id}).\n➡️ Utilizza `/mie_assegnazioni` per i dettagli.",
-            parse_mode="Markdown"
+            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Hey sacerdote! Ti è stata <b>assegnata una nuova prenotazione</b> (#{booking.id}).\n➡️ Utilizza <code>/mie_assegnazioni</code> per i dettagli.",
+            parse_mode="HTML"
         )
 
-        # Notifica dopo 48 ore se non completata
         context.job_queue.run_once(
             notify_uncompleted,
             when=48*3600,
@@ -557,20 +553,20 @@ async def assegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         session.close()
         
-@role_required(is_director, "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Non hai il permesso per eseguire questo comando.")
+@role_required(is_director, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il permesso per eseguire questo comando.")
 async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != DIRECTORS_GROUP_ID:
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Questo comando può essere usato **solo nel gruppo Direzione**.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Questo comando può essere usato <b>solo nel gruppo Direzione</b>.",
+            parse_mode="HTML"
         )
         return
 
     args = update.message.text.split()
     if len(args) < 3:
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ Sintassi errata!\n\n➡️ Utilizzo corretto: `/riassegna <id richiesta> <@username>`",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Sintassi errata!\n\n➡️ Utilizzo corretto: <code>/riassegna &lt;id richiesta&gt; &lt;@username&gt;</code>",
+            parse_mode="HTML"
         )
         return
 
@@ -579,8 +575,8 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not target.startswith("@"):
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ Devi specificare l'**@username** del sacerdote (es. @nomeutente).",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Devi specificare l'<b>@username</b> del sacerdote (es. @nomeutente).",
+            parse_mode="HTML"
         )
         return
 
@@ -591,8 +587,8 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         priest = session.query(Priest).filter_by(username=username).first()
         if not priest:
             await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Username non valido o sacerdote non registrato.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Username non valido o sacerdote non registrato.",
+                parse_mode="HTML"
             )
             return
 
@@ -600,32 +596,32 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not is_priest(priest_id):
             await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ L'utente indicato non è registrato come **sacerdote**.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ L'utente indicato non è registrato come <b>sacerdote</b>.",
+                parse_mode="HTML"
             )
             return
 
         booking = session.query(Booking).get(booking_id)
         if not booking:
             await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ La **prenotazione** inserita risulta inesistente.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ La <b>prenotazione</b> inserita risulta inesistente.",
+                parse_mode="HTML"
             )
             return
 
         # 🔎 Blocco se la prenotazione è completata o annullata
         if booking.status in ("completed", "cancelled"):
             await update.message.reply_text(
-                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ La prenotazione #{booking.id} è **{booking.status.upper()}** e non può essere riassegnata.",
-                parse_mode="Markdown"
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ La prenotazione #{booking.id} è <b>{booking.status.upper()}</b> e non può essere riassegnata.",
+                parse_mode="HTML"
             )
             return
 
         existing_assign = session.query(Assignment).filter_by(booking_id=booking.id).first()
         if not existing_assign:
             await update.message.reply_text(
-                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ La prenotazione #{booking.id} non è ancora stata assegnata.\n➡️ Usa `/assegna`.",
-                parse_mode="Markdown"
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ La prenotazione #{booking.id} non è ancora stata assegnata.\n➡️ Usa <code>/assegna</code>.",
+                parse_mode="HTML"
             )
             return
 
@@ -646,19 +642,19 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.commit()
 
         await update.message.reply_text(
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🔄 Prenotazione #{booking.id} **riassegnata** a @{username}.",
-            parse_mode="Markdown"
+            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🔄 Prenotazione #{booking.id} <b>riassegnata</b> a @{username}.",
+            parse_mode="HTML"
         )
         try:
             await context.bot.send_message(
                 priest_id,
-                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Hey sacerdote! Ti è appena stata **riassegnata una prenotazione** (#{booking.id}).\n➡️ Utilizza `/mie_assegnazioni` per i dettagli.",
-                parse_mode="Markdown"
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Hey sacerdote! Ti è appena stata <b>riassegnata una prenotazione</b> (#{booking.id}).\n➡️ Utilizza <code>/mie_assegnazioni</code> per i dettagli.",
+                parse_mode="HTML"
             )
         except telegram.error.Forbidden:
             await update.message.reply_text(
-                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ Impossibile notificare @{username} in privato.\n➡️ Deve avviare il bot.",
-                parse_mode="Markdown"
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Impossibile notificare @{username} in privato.\n➡️ Deve avviare il bot.",
+                parse_mode="HTML"
             )
 
         # 🔎 Cancella eventuale job precedente
@@ -686,21 +682,22 @@ async def notify_uncompleted(context: ContextTypes.DEFAULT_TYPE):
         if booking and booking.status == "assigned":
             await context.bot.send_message(
                 DIRECTORS_GROUP_ID,
-                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ La prenotazione #{booking.id} assegnata al sacerdote **{job_data['username']}** non è stata completata entro **48 ore**.",
-                parse_mode="Markdown"
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ La prenotazione #{booking.id} assegnata al sacerdote <b>{job_data['username']}</b> non è stata completata entro <b>48 ore</b>.",
+                parse_mode="HTML"
             )
     finally:
         session.close()
 
 
 
+
 # ---- SACERDOTE: LISTA E COMPLETAMENTO ----
-@role_required(is_priest, "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Non hai il permesso per eseguire il comando.")
+@role_required(is_priest, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il permesso per eseguire il comando.")
 async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Questo comando può essere usato **solo in privato** con il bot.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Questo comando può essere usato <b>solo in privato</b> con il bot.",
+            parse_mode="HTML"
         )
         return
     priest_id = update.effective_user.id
@@ -714,8 +711,8 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         if not assigns:
             await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Al momento non ti è stata **assegnata alcuna prenotazione**, ma questo durerà ancora per poco!",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Al momento non ti è stata <b>assegnata alcuna prenotazione</b>, ma questo durerà ancora per poco!",
+                parse_mode="HTML"
             )
             return
 
@@ -734,7 +731,7 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 continue
             if b.status == "assigned":
                 msgs.append(
-                    f"⚠️ **#{b.id} [DA COMPLETARE]** - {b.sacrament.replace('_',' ')}\n"
+                    f"⚠️ <b>#{b.id} [DA COMPLETARE]</b> - {b.sacrament.replace('_',' ')}\n"
                     f"👤 Contatto TG: {b.rp_name or 'Nessun contatto presente.'}\n"
                     f"🎮 Nick: {b.nickname_mc or 'Nessun nickname inserito.'}\n"
                     f"📝 Note: {b.notes or 'Nessuna nota.'}"
@@ -758,7 +755,7 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         kb = InlineKeyboardMarkup([buttons]) if buttons else None
 
-        await update.message.reply_text(text, reply_markup=kb, parse_mode="Markdown")
+        await update.message.reply_text(text, reply_markup=kb, parse_mode="HTML")
     finally:
         session.close()
 
@@ -779,8 +776,8 @@ async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TY
         )
         if not assigns:
             await query.edit_message_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Al momento non ti è stata **assegnata alcuna prenotazione**, ma questo durerà ancora per poco!",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Al momento non ti è stata <b>assegnata alcuna prenotazione</b>, ma questo durerà ancora per poco!",
+                parse_mode="HTML"
             )
             return
 
@@ -797,7 +794,7 @@ async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TY
                 continue
             if b.status == "assigned":
                 msgs.append(
-                    f"⚠️ **#{b.id} [DA COMPLETARE]** - {b.sacrament.replace('_',' ')}\n"
+                    f"⚠️ <b>#{b.id} [DA COMPLETARE]</b> - {b.sacrament.replace('_',' ')}\n"
                     f"👤 Contatto TG: {b.rp_name or 'Nessun contatto presente.'}\n"
                     f"🎮 Nick: {b.nickname_mc or 'Nessun nickname inserito.'}\n"
                     f"📝 Note: {b.notes or 'Nessuna nota.'}"
@@ -821,24 +818,24 @@ async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TY
 
         kb = InlineKeyboardMarkup([buttons]) if buttons else None
 
-        await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+        await query.edit_message_text(text, reply_markup=kb, parse_mode="HTML")
     finally:
         session.close()
 
-@role_required(is_priest, "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Non hai il permesso per eseguire questo comando.")
+@role_required(is_priest, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il permesso per eseguire il comando.")
 async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Questo comando può essere usato **solo in privato** con il bot.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Questo comando può essere usato <b>solo in privato</b> con il bot.",
+            parse_mode="HTML"
         )
         return
 
     args = update.message.text.split()
     if len(args) != 2:
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ Sintassi errata!\n\n➡️ Uso corretto: `/completa <id richiesta>`",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Sintassi errata!\n\n➡️ Uso corretto: <code>/completa &lt;id richiesta&gt;</code>",
+            parse_mode="HTML"
         )
         return
 
@@ -849,16 +846,16 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
         b = session.query(Booking).get(booking_id)
         if not b:
             await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ L'**ID della prenotazione** inserita risulta inesistente.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ L'<b>ID della prenotazione</b> inserita risulta inesistente.",
+                parse_mode="HTML"
             )
             return
 
         # 🔹 Controllo: se già completata, blocca
         if b.status == "completed":
             await update.message.reply_text(
-                f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ La prenotazione #{b.id} risulta già **completata** e non può essere completata di nuovo.",
-                parse_mode="Markdown"
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ La prenotazione #{b.id} risulta già <b>completata</b> e non può essere completata di nuovo.",
+                parse_mode="HTML"
             )
             return
 
@@ -868,8 +865,8 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ).first()
         if not a:
             await update.message.reply_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ L'**ID della prenotazione** inserita non ti è assegnata.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ L'<b>ID della prenotazione</b> inserita non ti è assegnata.",
+                parse_mode="HTML"
             )
             return
 
@@ -885,24 +882,23 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
             job.schedule_removal()
 
         await update.message.reply_text(
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✅ Grande! Prenotazione #{b.id} contrassegnata come **completata**.",
-            parse_mode="Markdown"
+            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ Grande! Prenotazione #{b.id} contrassegnata come <b>completata</b>.",
+            parse_mode="HTML"
         )
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
-            f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✝️ Sacramento **completato** #{b.id} da @{update.effective_user.username or priest_id}.",
-            parse_mode="Markdown"
+            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✝️ Sacramento <b>completato</b> #{b.id} da @{update.effective_user.username or priest_id}.",
+            parse_mode="HTML"
         )
     finally:
         session.close()
 
 
-
 # ---- CANCEL ----
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Processo **annullato**.",
-        parse_mode="Markdown"
+        "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Processo <b>annullato</b>.",
+        parse_mode="HTML"
     )
     return ConversationHandler.END
 
@@ -926,19 +922,18 @@ async def check_sla(app):
                 session.commit()
                 await app.bot.send_message(
                     DIRECTORS_GROUP_ID,
-                    f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n⚠️ ALERT: Prenotazione #{b.id} assegnata al sacerdote **{a.priest_telegram_id}** da oltre **48h**.",
-                    parse_mode="Markdown"
+                    f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ ALERT: Prenotazione #{b.id} assegnata al sacerdote <b>{a.priest_telegram_id}</b> da oltre <b>48h</b>.",
+                    parse_mode="HTML"
                 )
     finally:
         session.close()
 
-
-@role_required(is_director, "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Solo la **Direzione** può usare questo comando.")
+@role_required(is_director, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Solo la <b>Direzione</b> può usare questo comando.")
 async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != DIRECTORS_GROUP_ID:
         await update.message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Questo comando può essere usato **solo nel gruppo Direzione**.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Questo comando può essere usato <b>solo nel gruppo Direzione</b>.",
+            parse_mode="HTML"
         )
         return
 
@@ -952,10 +947,11 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
     ])
 
     await update.message.reply_text(
-        "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
+        "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
         reply_markup=kb,
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
+
 
 async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -976,10 +972,10 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 buttons = [[InlineKeyboardButton(f"@{p.username or p.telegram_id}", callback_data=f"priest_{p.telegram_id}")]
                            for p in priests]
                 buttons.append([InlineKeyboardButton("⬅️ Torna indietro", callback_data="back_main")])
-                new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Scegli un sacerdote:"
+                new_text = "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Scegli un sacerdote:"
                 new_markup = InlineKeyboardMarkup(buttons)
                 if query.message.text != new_text or query.message.reply_markup != new_markup:
-                    await query.edit_message_text(new_text, reply_markup=new_markup, parse_mode="Markdown")
+                    await query.edit_message_text(new_text, reply_markup=new_markup, parse_mode="HTML")
 
         elif data.startswith("priest_"):
             priest_id = int(data.replace("priest_", ""))
@@ -991,9 +987,9 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 [InlineKeyboardButton("✅ Completate", callback_data=f"priestfilter_{priest_id}_completed")],
                 [InlineKeyboardButton("⬅️ Torna indietro", callback_data="filter_priests")],
             ])
-            new_text = f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n🙏 Filtra le prenotazioni del sacerdote selezionato ({priest_tag}):"
+            new_text = f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Filtra le prenotazioni del sacerdote selezionato ({priest_tag}):"
             if query.message.text != new_text or query.message.reply_markup != kb:
-                await query.edit_message_text(new_text, reply_markup=kb, parse_mode="Markdown")
+                await query.edit_message_text(new_text, reply_markup=kb, parse_mode="HTML")
 
         elif data.startswith("priestfilter_"):
             _, priest_id, status = data.split("_")
@@ -1028,9 +1024,9 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                     [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
                     [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
                 ])
-                new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
+                new_text = "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
                 if query.message.text != new_text or query.message.reply_markup != kb:
-                    await query.edit_message_text(new_text, reply_markup=kb, parse_mode="Markdown")
+                    await query.edit_message_text(new_text, reply_markup=kb, parse_mode="HTML")
                 return
 
             last = context.user_data.get("last_list") or {}
@@ -1075,9 +1071,9 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                     [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
                     [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
                 ])
-                new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
+                new_text = "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
                 if query.message.text != new_text or query.message.reply_markup != kb:
-                    await query.edit_message_text(new_text, reply_markup=kb, parse_mode="Markdown")
+                    await query.edit_message_text(new_text, reply_markup=kb, parse_mode="HTML"
         elif data == "back_main":
             kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
@@ -1087,52 +1083,42 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 [InlineKeyboardButton("🎮 Cerca fedele", callback_data="search_fedele")],
                 [InlineKeyboardButton("🔎 Cerca per ID", callback_data="search_id")],
             ])
-            new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
+            new_text = "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
             if query.message.text != new_text or query.message.reply_markup != kb:
                 await query.edit_message_text(
                     new_text,
                     reply_markup=kb,
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
-
         elif data == "search_fedele":
-            # invia un nuovo messaggio di prompt e salva l'ID (nuovo messaggio, non edit)
             msg = await query.message.reply_text(
                 "✍️ Inserisci il nickname del fedele con un messaggio in chat:",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             context.user_data["search_mode"] = "fedele"
             context.user_data["last_prompt_message_id"] = msg.message_id
-
         elif data == "search_id":
-            # invia un nuovo messaggio di prompt e salva l'ID (nuovo messaggio, non edit)
             msg = await query.message.reply_text(
                 "✍️ Inserisci l'ID della prenotazione con un messaggio in chat:",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             context.user_data["search_mode"] = "id"
             context.user_data["last_prompt_message_id"] = msg.message_id
-
         elif data == "close_panel":
-            new_text = "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Pannello prenotazioni chiuso."
-            # controllo per evitare "Message is not modified"
+            new_text = "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Pannello prenotazioni chiuso."
             if query.message.text != new_text:
                 await query.edit_message_text(
                     new_text,
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
-    finally:
-        session.close()
-
-
-
+        finally:
+            session.close()
 
 async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = context.user_data.get("search_mode")
     if not mode:
         return
 
-    # 🔹 Cancella il messaggio di prompt se esiste
     prompt_id = context.user_data.get("last_prompt_message_id")
     if prompt_id:
         try:
@@ -1173,11 +1159,10 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
                     [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
                 ])
                 await update.message.reply_text(
-                    f"❌ Nessuna prenotazione trovata per il fedele **{filtro}**.",
+                    f"❌ Nessuna prenotazione trovata per il fedele <b>{filtro}</b>.",
                     reply_markup=kb,
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
-
         elif mode == "id":
             try:
                 booking_id = int(update.message.text.strip())
@@ -1188,7 +1173,7 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
                 await update.message.reply_text(
                     "❌ Devi inserire un ID numerico valido.",
                     reply_markup=kb,
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
                 return
 
@@ -1212,9 +1197,9 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
                     [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
                 ])
                 await update.message.reply_text(
-                    f"❌ Nessuna prenotazione trovata con ID **{booking_id}**.",
+                    f"❌ Nessuna prenotazione trovata con ID <b>{booking_id}</b>.",
                     reply_markup=kb,
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
     finally:
         session.close()
@@ -1222,20 +1207,18 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
     # 🔹 Reset modalità ricerca
     context.user_data["search_mode"] = None
 
-
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
-        msg = f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Nessuna prenotazione trovata per **{titolo}**."
+        msg = f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Nessuna prenotazione trovata per <b>{titolo}</b>."
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
         ])
 
         if isinstance(target, Message):
-            await target.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
+            await target.reply_text(msg, reply_markup=kb, parse_mode="HTML")
         elif isinstance(target, CallbackQuery):
-            # controllo per evitare "Message is not modified"
             if target.message.text != msg or target.message.reply_markup != kb:
-                await target.edit_message_text(msg, reply_markup=kb, parse_mode="Markdown")
+                await target.edit_message_text(msg, reply_markup=kb, parse_mode="HTML")
         return
 
     per_page = 5
@@ -1295,11 +1278,10 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     kb = InlineKeyboardMarkup(keyboard)
 
     if isinstance(target, Message):
-        await target.reply_text(text, reply_markup=kb, parse_mode="Markdown")
+        await target.reply_text(text, reply_markup=kb, parse_mode="HTML")
     elif isinstance(target, CallbackQuery):
-        # controllo per evitare "Message is not modified"
         if target.message.text != text or target.message.reply_markup != kb:
-            await target.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+            await target.edit_message_text(text, reply_markup=kb, parse_mode="HTML")
 
 # 🔎 Callback per conferma/annulla rimozione prenotazioni
 async def handle_remove_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1332,23 +1314,23 @@ async def handle_remove_callback(update: Update, context: ContextTypes.DEFAULT_T
             msg_parts = []
             if removed:
                 msg_parts.append(
-                    f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n✅ Prenotazioni **rimosse**: {', '.join(map(str, removed))}"
+                    f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ Prenotazioni <b>rimosse</b>: {', '.join(map(str, removed))}"
                 )
             if not_found:
                 msg_parts.append(
-                    f"**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Prenotazioni **non trovate**: {', '.join(map(str, not_found))}"
+                    f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Prenotazioni <b>non trovate</b>: {', '.join(map(str, not_found))}"
                 )
 
             await query.edit_message_text(
                 "\n".join(msg_parts) if msg_parts else
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\nℹ️ Nessuna prenotazione rimossa.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Nessuna prenotazione rimossa.",
+                parse_mode="HTML"
             )
 
         elif data == "cancel_remove":
             await query.edit_message_text(
-                "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Rimozione **annullata**.",
-                parse_mode="Markdown"
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Rimozione <b>annullata</b>.",
+                parse_mode="HTML"
             )
 
     finally:
@@ -1397,24 +1379,24 @@ async def weekly_report(app):
 
         # Costruzione messaggio
         lines = [
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️",
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️",
             "",
-            "📊 **Report settimanale**",
-            f"🗓 Periodo: **{start.date()} ➝ {end.date()}**",
-            f"✝️ Totale sacramenti completati: **{total}**",
+            "📊 <b>Report settimanale</b>",
+            f"🗓 Periodo: <b>{start.date()} ➝ {end.date()}</b>",
+            f"✝️ Totale sacramenti completati: <b>{total}</b>",
             "",
-            "🏆 **Classifica sacerdoti:**"
+            "🏆 <b>Classifica sacerdoti:</b>"
         ]
         if per_priest:
             for pid, num in sorted(per_priest.items(), key=lambda x: x[1], reverse=True):
                 priest = session.query(Priest).filter(Priest.telegram_id == pid).first()
                 priest_tag = f"@{priest.username}" if priest and priest.username else str(pid)
-                lines.append(f"- 🙏 Sacerdote **{priest_tag}**: {num}")
+                lines.append(f"- 🙏 Sacerdote <b>{priest_tag}</b>: {num}")
         else:
             lines.append("ℹ️ Nessun sacramento completato dai sacerdoti questa settimana.")
 
         lines.append("")
-        lines.append("✝️ **Dettaglio per sacramento:**")
+        lines.append("✝️ <b>Dettaglio per sacramento:</b>")
         if per_sacrament:
             for sac, num in per_sacrament.items():
                 lines.append(f"- {sac.replace('_',' ')}: {num}")
@@ -1422,22 +1404,21 @@ async def weekly_report(app):
             lines.append("ℹ️ Nessun sacramento completato questa settimana.")
 
         lines.append("")
-        lines.append(f"📌 Prenotazioni ancora **aperte**: {open_items}")
+        lines.append(f"📌 Prenotazioni ancora <b>aperte</b>: {open_items}")
 
         # Invio al gruppo direzione
-        await app.bot.send_message(DIRECTORS_GROUP_ID, "\n".join(lines), parse_mode="Markdown")
+        await app.bot.send_message(DIRECTORS_GROUP_ID, "\n".join(lines), parse_mode="HTML")
 
     finally:
         session.close()
-
 
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.exception("Unhandled error", exc_info=context.error)
     if update and update.effective_message:
         await update.effective_message.reply_text(
-            "**𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄** ⚓️\n\n❌ Si è verificato un **errore**.\n\n➡️ Sei pregato di segnalarlo a @LavatiScimmiaInfuocata.",
-            parse_mode="Markdown"
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Si è verificato un <b>errore</b>.\n\n➡️ Sei pregato di segnalarlo a @LavatiScimmiaInfuocata.",
+            parse_mode="HTML"
         )
 
 
