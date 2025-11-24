@@ -1073,7 +1073,7 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 ])
                 new_text = "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:"
                 if query.message.text != new_text or query.message.reply_markup != kb:
-                    await query.edit_message_text(new_text, reply_markup=kb, parse_mode="HTML"
+                    await query.edit_message_text(new_text, reply_markup=kb, parse_mode="HTML")
         elif data == "back_main":
             kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
