@@ -1456,10 +1456,14 @@ def build_application():
     app.add_handler(conv_ingame)
 
     # Direzione
-    app.add_handler(CommandHandler("assegna", assegna))
+    # 🔹 Rimosso il comando /assegna (ora gestito da pulsanti inline)
     app.add_handler(CommandHandler("riassegna", riassegna))
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern="^(confirm_remove_|cancel_remove)"))
+
+    # 🔹 Nuovi handler per assegnazione tramite pulsanti
+    app.add_handler(CallbackQueryHandler(assign_callback, pattern=r"^assign_\d+$"))
+    app.add_handler(CallbackQueryHandler(do_assign_callback, pattern=r"^do_assign_\d+_\d+$"))
 
     # 🔹 Nuovi handler per pannello avanzato prenotazioni
     app.add_handler(CallbackQueryHandler(
@@ -1482,5 +1486,3 @@ def build_application():
     scheduler.start()
 
     return app
-
-
