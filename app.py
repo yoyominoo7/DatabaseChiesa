@@ -367,7 +367,6 @@ async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_CONFIRM
 
-
 async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -413,6 +412,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             details="ingame"
         ))
         session.commit()
+
         rp_name = html.escape(booking.rp_name)
         nickname_mc = html.escape(booking.nickname_mc)
         sacrament_display = html.escape(sacrament_display_raw.replace("_"," "))
@@ -434,7 +434,8 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("➕ Assegna", callback_data=f"assign_{booking.id}")]
         ])
 
-        await context.bot.send_message(
+        # 🔹 Salviamo l'ID del messaggio originale della prenotazione
+        msg = await context.bot.send_message(
             DIRECTORS_GROUP_ID,
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📢 È presente una nuova <b>prenotazione</b>! (ID #{booking.id})\n\n"
             f"• 👤 Contatto Telegram: <b>{rp_name}</b>\n"
@@ -447,10 +448,12 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
+        # Salvo l'ID del messaggio originale per poterlo modificare dopo
+        context.user_data[f"booking_msg_{booking.id}"] = msg.message_id
+
         return ConversationHandler.END
     finally:
         session.close()
-
 
 # ---- DIREZIONE: CALLBACK "Assegna" ----
 async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -495,13 +498,11 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     # Rimuovi il prefisso "do_assign_"
     data = query.data.replace("do_assign_", "")
     booking_id, priest_id = data.split("_")
     booking_id = int(booking_id)
     priest_id = int(priest_id)
-
     session = SessionLocal()
     try:
         booking = session.query(Booking).get(booking_id)
@@ -510,7 +511,6 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if not booking or not priest:
             await query.answer("❌ Errore: prenotazione o sacerdote non trovati.", show_alert=True)
             return
-
         # 🔹 Aggiorna stato prenotazione
         booking.status = "assigned"
         booking.updated_at = datetime.now(timezone.utc)
@@ -535,7 +535,13 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if assign_msg_id:
             await context.bot.delete_message(DIRECTORS_GROUP_ID, assign_msg_id)
         # 🔹 Rimuovi pulsante "Assegna" dal messaggio originale
-        await query.edit_message_reply_markup(reply_markup=None)
+        booking_msg_id = context.user_data.get(f"booking_msg_{booking.id}")
+        if booking_msg_id:
+            await context.bot.edit_message_reply_markup(
+                chat_id=DIRECTORS_GROUP_ID,
+                message_id=booking_msg_id,
+                reply_markup=None
+            )
         # 🔹 Notifica al gruppo Direzione
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
