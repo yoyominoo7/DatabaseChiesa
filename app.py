@@ -951,7 +951,7 @@ async def check_sla(app):
                         parse_mode="HTML"
                     )
     finally:
-        
+        session.close()
 @role_required(is_director, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Solo la <b>Direzione</b> può usare questo comando.")
 async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != DIRECTORS_GROUP_ID:
