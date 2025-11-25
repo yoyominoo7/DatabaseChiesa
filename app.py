@@ -914,7 +914,6 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# ---- SCHEDULER ----
 async def check_sla(app):
     session = SessionLocal()
     try:
@@ -925,20 +924,34 @@ async def check_sla(app):
             b = session.query(Booking).get(a.booking_id)
             if not b or b.status == "completed":
                 continue
-            ref_time = a.taken_at or a.assigned_at
-            if ref_time and ref_time < threshold and not a.due_alert_sent:
-                a.due_alert_sent = True
-                session.add(a)
-                session.add(EventLog(booking_id=b.id, actor_id=0, action="alert", details="48h SLA"))
-                session.commit()
-                await app.bot.send_message(
-                    DIRECTORS_GROUP_ID,
-                    f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ ALERT: Prenotazione #{b.id} assegnata al sacerdote <b>{a.priest_telegram_id}</b> da oltre <b>48h</b>.",
-                    parse_mode="HTML"
-                )
-    finally:
-        session.close()
 
+            ref_time = a.taken_at or a.assigned_at
+            if ref_time:
+                # Normalizza ref_time in UTC
+                if ref_time.tzinfo is None:
+                    ref_time = ref_time.replace(tzinfo=timezone.utc)
+                else:
+                    ref_time = ref_time.astimezone(timezone.utc)
+
+                if ref_time < threshold and not a.due_alert_sent:
+                    a.due_alert_sent = True
+                    session.add(a)
+                    session.add(EventLog(
+                        booking_id=b.id,
+                        actor_id=0,
+                        action="alert",
+                        details="48h SLA"
+                    ))
+                    session.commit()
+                    await app.bot.send_message(
+                        DIRECTORS_GROUP_ID,
+                        f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n"
+                        f"⚠️ ALERT: Prenotazione #{b.id} assegnata al sacerdote "
+                        f"<b>{a.priest_telegram_id}</b> da oltre <b>48h</b>.",
+                        parse_mode="HTML"
+                    )
+    finally:
+        
 @role_required(is_director, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Solo la <b>Direzione</b> può usare questo comando.")
 async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != DIRECTORS_GROUP_ID:
