@@ -862,6 +862,7 @@ async def back_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     complete_button = [InlineKeyboardButton("✝️ Completa una prenotazione", callback_data="completa_menu")]
     await query.edit_message_reply_markup(
         reply_markup=InlineKeyboardMarkup([complete_button])
+    )
 
 # ---- CANCEL ----
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
