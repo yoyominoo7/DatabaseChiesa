@@ -711,6 +711,7 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
         return
+
     priest_id = update.effective_user.id
     session = SessionLocal()
     try:
@@ -727,16 +728,8 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        per_page = 5
-        page = int(context.args[0]) if context.args else 1
-        total_pages = (len(assigns) + per_page - 1) // per_page
-
-        start = (page - 1) * per_page
-        end = start + per_page
-        assigns_page = assigns[start:end]
-
         msgs = []
-        for a in assigns_page:
+        for a in assigns:
             b = session.query(Booking).get(a.booking_id)
             if not b:
                 continue
@@ -755,117 +748,72 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"📝 Note: {b.notes or 'Nessuna nota.'}"
                 )
 
-        text = "\n\n".join(msgs)
-        text += f"\n\n📄 Pagina {page}/{total_pages}"
+        text = "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n" + "\n\n".join(msgs)
 
-        buttons = []
-        if page > 1:
-            buttons.append(InlineKeyboardButton("⬅️ Indietro", callback_data=f"assign_page_{page-1}"))
-        if page < total_pages:
-            buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"assign_page_{page+1}"))
-
-        kb = InlineKeyboardMarkup([buttons]) if buttons else None
+        # Bottone per completare
+        complete_button = [InlineKeyboardButton("✝️ Completa una prenotazione", callback_data="completa_menu")]
+        kb = InlineKeyboardMarkup([complete_button])
 
         await update.message.reply_text(text, reply_markup=kb, parse_mode="HTML")
     finally:
         session.close()
 
 
-async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ---- Callback: mostra menu completamento ----
+async def completa_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    page = int(query.data.split("_")[-1])
-
-    priest_id = update.effective_user.id
+    priest_id = query.from_user.id
     session = SessionLocal()
     try:
         assigns = (
             session.query(Assignment)
             .filter(Assignment.priest_telegram_id == priest_id)
-            .order_by(Assignment.id.desc())
             .all()
         )
         if not assigns:
             await query.edit_message_text(
-                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Al momento non ti è stata <b>assegnata alcuna prenotazione</b>, ma questo durerà ancora per poco!",
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Al momento non ti è stata <b>assegnata alcuna prenotazione</b>.",
                 parse_mode="HTML"
             )
             return
 
-        per_page = 5
-        total_pages = (len(assigns) + per_page - 1) // per_page
-        start = (page - 1) * per_page
-        end = start + per_page
-        assigns_page = assigns[start:end]
-
-        msgs = []
-        for a in assigns_page:
+        keyboard = []
+        for a in assigns:
             b = session.query(Booking).get(a.booking_id)
-            if not b:
-                continue
-            if b.status == "assigned":
-                msgs.append(
-                    f"⚠️ <b>#{b.id} [DA COMPLETARE]</b> - {b.sacrament.replace('_',' ')}\n"
-                    f"👤 Contatto TG: {b.rp_name or 'Nessun contatto presente.'}\n"
-                    f"🎮 Nick: {b.nickname_mc or 'Nessun nickname inserito.'}\n"
-                    f"📝 Note: {b.notes or 'Nessuna nota.'}"
-                )
-            else:
-                msgs.append(
-                    f"✅ #{b.id} [{b.status.upper()}] - {b.sacrament.replace('_',' ')}\n"
-                    f"👤 Contatto TG: {b.rp_name or 'Nessun contatto presente.'}\n"
-                    f"🎮 Nick: {b.nickname_mc or 'Nessun nickname inserito.'}\n"
-                    f"📝 Note: {b.notes or 'Nessuna nota'}"
-                )
+            if b and b.status == "assigned":
+                keyboard.append([InlineKeyboardButton(f"#{b.id}", callback_data=f"completa_{b.id}")])
 
-        text = "\n\n".join(msgs)
-        text += f"\n\n📄 Pagina {page}/{total_pages}"
+        keyboard.append([InlineKeyboardButton("⬅️ Torna indietro", callback_data="back_menu")])
 
-        buttons = []
-        if page > 1:
-            buttons.append(InlineKeyboardButton("⬅️ Indietro", callback_data=f"assign_page_{page-1}"))
-        if page < total_pages:
-            buttons.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"assign_page_{page+1}"))
-
-        kb = InlineKeyboardMarkup([buttons]) if buttons else None
-
-        await query.edit_message_text(text, reply_markup=kb, parse_mode="HTML")
+        await query.edit_message_text(
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✝️ Seleziona l'<b>ID della prenotazione</b> che vuoi contrassegnare come <b>completata</b>:",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     finally:
         session.close()
+        
+# ---- Callback: completa prenotazione ----
+async def completa_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    priest_id = query.from_user.id
+    booking_id = int(query.data.split("_")[1])
 
-@role_required(is_priest, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il permesso per eseguire il comando.")
-async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != "private":
-        await update.message.reply_text(
-            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Questo comando può essere usato <b>solo in privato</b> con il bot.",
-            parse_mode="HTML"
-        )
-        return
-
-    args = update.message.text.split()
-    if len(args) != 2:
-        await update.message.reply_text(
-            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Sintassi errata!\n\n➡️ Uso corretto: <code>/completa &lt;id richiesta&gt;</code>",
-            parse_mode="HTML"
-        )
-        return
-
-    booking_id = int(args[1])
-    priest_id = update.effective_user.id
     session = SessionLocal()
     try:
         b = session.query(Booking).get(booking_id)
         if not b:
-            await update.message.reply_text(
-                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ L'<b>ID della prenotazione</b> inserita risulta inesistente.",
+            await query.message.reply_text(
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ L'<b>ID della prenotazione</b> selezionata risulta inesistente.",
                 parse_mode="HTML"
             )
             return
 
-        # 🔹 Controllo: se già completata, blocca
         if b.status == "completed":
-            await update.message.reply_text(
-                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ La prenotazione #{b.id} risulta già <b>completata</b> e non può essere completata di nuovo.",
+            await query.message.reply_text(
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ La prenotazione #{b.id} risulta già <b>completata</b>.",
                 parse_mode="HTML"
             )
             return
@@ -875,8 +823,8 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
             Assignment.priest_telegram_id == priest_id
         ).first()
         if not a:
-            await update.message.reply_text(
-                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ L'<b>ID della prenotazione</b> inserita non ti è assegnata.",
+            await query.message.reply_text(
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ L'<b>ID della prenotazione</b> selezionata non ti è assegnata.",
                 parse_mode="HTML"
             )
             return
@@ -892,18 +840,28 @@ async def completa(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for job in context.job_queue.get_jobs_by_name(f"notify_{b.id}"):
             job.schedule_removal()
 
-        await update.message.reply_text(
+        await query.message.reply_text(
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ Grande! Prenotazione #{b.id} contrassegnata come <b>completata</b>.",
             parse_mode="HTML"
         )
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
-            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✝️ Sacramento <b>completato</b> #{b.id} da @{update.effective_user.username or priest_id}.",
+            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✝️ Sacramento <b>completato</b> #{b.id} da @{query.from_user.username or priest_id}.",
             parse_mode="HTML"
         )
+
+        # 🔹 Rimuovi bottone corrispondente
+        keyboard = query.message.reply_markup.inline_keyboard
+        new_keyboard = [row for row in keyboard if not any(btn.callback_data == f"completa_{booking_id}" for btn in row)]
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(new_keyboard))
     finally:
         session.close()
-
+async def back_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    complete_button = [InlineKeyboardButton("✝️ Completa una prenotazione", callback_data="completa_menu")]
+    await query.edit_message_reply_markup(
+        reply_markup=InlineKeyboardMarkup([complete_button])
 
 # ---- CANCEL ----
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1453,11 +1411,9 @@ def build_application():
     init_db()
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_error_handler(on_error)
-
     # START (solo benvenuto)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(choose_role, pattern=r"^role_(sacerdote|segretario|direzione)$"))
-
     # Ingame booking conversation (secretaries)
     conv_ingame = ConversationHandler(
         entry_points=[CommandHandler("prenota_ingame", prenota_ingame)],
@@ -1472,30 +1428,29 @@ def build_application():
         allow_reentry=True,
     )
     app.add_handler(conv_ingame)
-
     # Direzione
     # 🔹 Rimosso il comando /assegna (ora gestito da pulsanti inline)
     app.add_handler(CommandHandler("riassegna", riassegna))
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern="^(confirm_remove_|cancel_remove)"))
-
     # 🔹 Nuovi handler per assegnazione tramite pulsanti
     app.add_handler(CallbackQueryHandler(assign_callback, pattern=r"^assign_\d+$"))
     app.add_handler(CallbackQueryHandler(do_assign_callback, pattern=r"^do_assign_\d+_\d+$"))
-
     # 🔹 Nuovi handler per pannello avanzato prenotazioni
     app.add_handler(CallbackQueryHandler(
         lista_prenotazioni_callback,
         pattern="^(filter_|priest_|priestfilter_|bookings_page_|back_main|search_fedele|search_id|close_panel)"
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lista_prenotazioni_search))
-
     # Sacerdoti
     app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
     app.add_handler(CommandHandler("completa", completa))
-
-    # Paginazioni
+    # Paginazioni assegnazioni
     app.add_handler(CallbackQueryHandler(mie_assegnazioni_page, pattern=r"^assign_page_\d+$"))
+    # 🔹 Nuovi callback per completamento prenotazioni
+    app.add_handler(CallbackQueryHandler(completa_menu, pattern=r"^completa_menu$"))
+    app.add_handler(CallbackQueryHandler(completa_booking, pattern=r"^completa_\d+$"))
+    app.add_handler(CallbackQueryHandler(back_menu, pattern=r"^back_menu$"))
 
     # Scheduler
     scheduler = AsyncIOScheduler(timezone="UTC")
