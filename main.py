@@ -33,12 +33,22 @@ def set_webhook():
     """Registra il webhook su Telegram all'avvio."""
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     external_url = os.environ.get("RENDER_EXTERNAL_URL")
+
+    if not external_url:
+        raise RuntimeError("RENDER_EXTERNAL_URL non impostato nelle variabili d'ambiente")
+
     webhook_url = f"{external_url}/{token}"
-    resp = requests.post(
-        f"https://api.telegram.org/bot{token}/setWebhook",
-        data={"url": webhook_url}
-    )
-    print("Webhook set response:", resp.text)
+    print("Imposto webhook su:", webhook_url)
+
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/setWebhook",
+            data={"url": webhook_url},
+            timeout=10
+        )
+        print("Risposta Telegram:", resp.text)
+    except Exception as e:
+        print("Errore durante setWebhook:", e)
 
 if __name__ == "__main__":
     # Registra il webhook su Telegram
