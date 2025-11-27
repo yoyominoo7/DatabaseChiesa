@@ -27,8 +27,8 @@ def home():
 @flask_app.route(f"/{os.environ['TELEGRAM_BOT_TOKEN']}", methods=["POST"])
 def webhook():
     update = request.get_json(force=True)
-    # Processa direttamente l'update
-    asyncio.run(application.process_update(update))
+    # Processa direttamente l'update in modo asincrono
+    asyncio.get_event_loop().create_task(application.process_update(update))
     return "OK", 200
 
 def set_webhook():
@@ -56,8 +56,9 @@ if __name__ == "__main__":
     # Registra il webhook su Telegram
     set_webhook()
 
-    # Avvia l'application in background (loop asyncio)
-    application.run_async()
+    # Inizializza e avvia l'application (dispatcher + job queue)
+    application.initialize()
+    application.start()
 
     # Avvia Flask
     port = int(os.environ.get("PORT", 5000))
