@@ -2,8 +2,8 @@ import os
 from flask import Flask, request
 from datetime import time
 import requests
+from telegram import Update
 from app import build_application, weekly_report
-import asyncio
 
 # --- Flask web server ---
 flask_app = Flask(__name__)
@@ -26,9 +26,10 @@ def home():
 # Endpoint webhook per Telegram
 @flask_app.route(f"/{os.environ['TELEGRAM_BOT_TOKEN']}", methods=["POST"])
 def webhook():
-    update = request.get_json(force=True)
-    # Processa direttamente l'update in modo asincrono
-    asyncio.get_event_loop().create_task(application.process_update(update))
+    data = request.get_json(force=True)
+    # Converte il JSON in un oggetto Update e lo processa
+    update = Update.de_json(data, application.bot)
+    application.process_update(update)
     return "OK", 200
 
 def set_webhook():
