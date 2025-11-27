@@ -11,11 +11,12 @@ app = build_application()
 def home():
     return "Bot is running!"
 
+# 🔹 Route webhook: Telegram invia qui gli update
 @flask_app.route(f"/{os.environ['TELEGRAM_BOT_TOKEN']}", methods=["POST"])
-def webhook():
+async def webhook():
     data = request.get_json(force=True)
-    update = Update.de_json(data, app.bot)   # ✅ conversione corretta
-    app.update_queue.put_nowait(update)
+    update = Update.de_json(data, app.bot)
+    await app.process_update(update)   # ✅ passa l'update all'application
     return "OK", 200
 
 def schedule_jobs(application):
