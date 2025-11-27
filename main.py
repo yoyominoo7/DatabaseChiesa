@@ -1,6 +1,7 @@
 import os
 from flask import Flask, request
 from datetime import time
+import requests
 from app import build_application, weekly_report
 
 # --- Flask web server ---
@@ -28,6 +29,21 @@ def webhook():
     application.update_queue.put(update)
     return "OK", 200
 
+def set_webhook():
+    """Registra il webhook su Telegram all'avvio."""
+    token = os.environ["TELEGRAM_BOT_TOKEN"]
+    external_url = os.environ.get("RENDER_EXTERNAL_URL")
+    webhook_url = f"{external_url}/{token}"
+    resp = requests.post(
+        f"https://api.telegram.org/bot{token}/setWebhook",
+        data={"url": webhook_url}
+    )
+    print("Webhook set response:", resp.text)
+
 if __name__ == "__main__":
+    # Registra il webhook su Telegram
+    set_webhook()
+
+    # Avvia Flask
     port = int(os.environ.get("PORT", 5000))
     flask_app.run(host="0.0.0.0", port=port)
