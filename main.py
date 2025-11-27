@@ -3,6 +3,7 @@ from flask import Flask, request
 from datetime import time
 import requests
 from app import build_application, weekly_report
+import asyncio
 
 # --- Flask web server ---
 flask_app = Flask(__name__)
@@ -26,7 +27,8 @@ def home():
 @flask_app.route(f"/{os.environ['TELEGRAM_BOT_TOKEN']}", methods=["POST"])
 def webhook():
     update = request.get_json(force=True)
-    application.update_queue.put(update)
+    # Processa direttamente l'update
+    asyncio.run(application.process_update(update))
     return "OK", 200
 
 def set_webhook():
@@ -53,6 +55,9 @@ def set_webhook():
 if __name__ == "__main__":
     # Registra il webhook su Telegram
     set_webhook()
+
+    # Avvia l'application in background (loop asyncio)
+    application.run_async()
 
     # Avvia Flask
     port = int(os.environ.get("PORT", 5000))
