@@ -1,41 +1,38 @@
 import os
-from flask import Flask, request
+import threading
+from flask import Flask
 from datetime import time
-from telegram import Update
 from app import build_application, weekly_report
 
+# --- Flask web server ---
 flask_app = Flask(__name__)
-app = build_application()
 
 @flask_app.route("/")
 def home():
     return "Bot is running!"
 
-# 🔹 Route webhook: Telegram invia qui gli update
-@flask_app.route(f"/{os.environ['TELEGRAM_BOT_TOKEN']}", methods=["POST"])
-async def webhook():
-    data = request.get_json(force=True)
-    update = Update.de_json(data, app.bot)
-    await app.process_update(update)   # ✅ passa l'update all'application
-    return "OK", 200
-
 def schedule_jobs(application):
+    # Pianifica il job settimanale: ogni lunedì alle 9:00
     application.job_queue.run_daily(
         weekly_report,
         time=time(hour=9, minute=0),
-        days=(0,),  # lunedì
+        days=(0,),  # 0 = lunedì
         name="weekly_report_job"
     )
 
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    flask_app.run(host="0.0.0.0", port=port, use_reloader=False)
+
 if __name__ == "__main__":
+    # Costruisci l'applicazione Telegram
+    app = build_application()
+
+    # Pianifica i job settimanali
     schedule_jobs(app)
 
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
-    external_url = os.environ.get("RENDER_EXTERNAL_URL")  # es: https://databasechiesa.onrender.com
-    webhook_url = f"{external_url}/{token}"
+    # Avvia Flask in un thread separato (per UptimeRobot)
+    threading.Thread(target=run_flask).start()
 
-    # Imposta webhook su Telegram
-    app.bot.set_webhook(url=webhook_url, drop_pending_updates=True)
-
-    port = int(os.environ.get("PORT", 5000))
-    flask_app.run(host="0.0.0.0", port=port)
+    # Avvia il bot in modalità polling
+    app.run_polling(drop_pending_updates=True)
