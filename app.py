@@ -1495,6 +1495,19 @@ async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Si è verificato un <b>errore</b>.\n\n➡️ Sei pregato di segnalarlo a @LavatiScimmiaInfuocata.",
             parse_mode="HTML"
         )
+# ---- DEBUG: Recupera ID del topic ----
+async def get_topic_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message and update.message.is_topic_message:
+        thread_id = update.message.message_thread_id
+        await update.message.reply_text(
+            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🆔 L'ID di questo topic è: <code>{thread_id}</code>",
+            parse_mode="HTML"
+        )
+    else:
+        await update.message.reply_text(
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Devi usare questo comando <b>all'interno di un topic</b> del gruppo Direzione.",
+            parse_mode="HTML"
+        )
 
 
 # ---- BUILD APPLICATION ----
@@ -1530,6 +1543,7 @@ def build_application():
     app.add_handler(CommandHandler("riassegna", riassegna))
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern="^(confirm_remove_|cancel_remove)"))
+    app.add_handler(CommandHandler("get_topic_id", get_topic_id))
 
     # 🔹 Assegnazioni tramite pulsanti
     app.add_handler(CallbackQueryHandler(assign_callback, pattern=r"^assign_\d+$"))
