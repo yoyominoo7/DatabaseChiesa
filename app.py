@@ -43,7 +43,7 @@ DIRECTORS_GROUP_ID = int(os.getenv("DIRECTORS_GROUP_ID", "0"))
 SECRETARIES_IDS = {int(x) for x in os.getenv("SECRETARIES_IDS", "").split(",") if x}
 PRIESTS_IDS = {int(x) for x in os.getenv("PRIESTS_IDS", "").split(",") if x}
 DIRECTORS_IDS = {int(x) for x in os.getenv("DIRECTORS_IDS", "").split(",") if x}
-
+DIRECTORS_TOPIC_ID = int(os.getenv("DIRECTORS_TOPIC_ID"))
 # ---- DB ----
 Base = declarative_base()
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
