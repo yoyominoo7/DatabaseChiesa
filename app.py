@@ -962,56 +962,73 @@ async def completa_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    priest_id = query.from_user.id
 
+    priest_id = query.from_user.id
     session = SessionLocal()
     try:
-        # Recupera assegnazioni del sacerdote
         assigns = (
             session.query(Assignment)
             .filter(Assignment.priest_telegram_id == priest_id)
+            .order_by(Assignment.id.desc())
             .all()
         )
+        if not assigns:
+            await query.edit_message_text(
+                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Al momento non ti è stata <b>assegnata alcuna prenotazione</b>, ma questo durerà ancora per poco!",
+                parse_mode="HTML"
+            )
+            return
 
-        # Costruisci testo lista assegnazioni
-        lines = [
-            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️",
-            "",
-            "📋 <b>Le tue assegnazioni</b>:"
-        ]
+        per_page = 5
+        page = 1   # 🔹 quando torni indietro riparti dalla prima pagina
+        total_pages = (len(assigns) + per_page - 1) // per_page
 
-        count_active = 0
-        for a in assigns:
+        start = (page - 1) * per_page
+        end = start + per_page
+        assigns_page = assigns[start:end]
+
+        msgs = []
+        for a in assigns_page:
             b = session.query(Booking).get(a.booking_id)
             if not b:
                 continue
-            # Mostra tutte, ma evidenzia quelle completabili
-            status = b.status.upper()
-            nick = (b.nickname_mc or "-").replace("_", " ")
-            sac = (b.sacrament or "-").replace("_", " ")
-            lines.append(f"- #{b.id} [{status}] • 🎮 {nick} • ✝️ {sac}")
-            if b.status in ("assigned", "in_progress"):
-                count_active += 1
+            if b.status == "assigned":
+                msgs.append(
+                    f"⚠️ <b>#{b.id} [DA COMPLETARE]</b> - {b.sacrament.replace('_',' ')}\n"
+                    f"👤 Contatto TG: {b.rp_name or 'Nessun contatto presente.'}\n"
+                    f"🎮 Nick: {b.nickname_mc or 'Nessun nickname inserito.'}\n"
+                    f"📝 Note: {b.notes or 'Nessuna nota.'}"
+                )
+            else:
+                msgs.append(
+                    f"✅ #{b.id} [{b.status.upper()}] - {b.sacrament.replace('_',' ')}\n"
+                    f"👤 Contatto TG: {b.rp_name or 'Nessun contatto presente.'}\n"
+                    f"🎮 Nick: {b.nickname_mc or 'Nessun nickname inserito.'}\n"
+                    f"📝 Note: {b.notes or 'Nessuna nota.'}"
+                )
 
-        if not assigns:
-            lines.append("ℹ️ Al momento non ti è stata assegnata alcuna prenotazione.")
+        text = "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n" + "\n\n".join(msgs)
+        text += f"\n\n📄 Pagina {page}/{total_pages}"
+
+        # Bottoni di navigazione
+        buttons_nav = []
+        if page > 1:
+            buttons_nav.append(InlineKeyboardButton("⬅️ Indietro", callback_data=f"assign_page_{page-1}"))
+        if page < total_pages:
+            buttons_nav.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"assign_page_{page+1}"))
+
+        # Bottone completamento su riga separata
+        button_complete = [InlineKeyboardButton("✝️ Completa una prenotazione", callback_data="completa_menu")]
+
+        if buttons_nav:
+            kb = InlineKeyboardMarkup([buttons_nav, button_complete])
         else:
-            lines.append("")
-            if count_active == 0:
-                lines.append("ℹ️ Nessuna prenotazione attiva da completare.")
+            kb = InlineKeyboardMarkup([button_complete])
 
-        # Tastiera: entra nel flusso di completamento + refresh
-        keyboard = []
-        keyboard.append([InlineKeyboardButton("✝️ Completa una prenotazione", callback_data="completa_menu")])
-        keyboard.append([InlineKeyboardButton("🔄 Aggiorna elenco", callback_data="back_menu")])
-
-        await query.edit_message_text(
-            "\n".join(lines),
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await query.edit_message_text(text, reply_markup=kb, parse_mode="HTML")
     finally:
         session.close()
+
 
 # ---- CANCEL ----
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
