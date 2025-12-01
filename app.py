@@ -186,7 +186,7 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _send_role_welcome(target_message: Message, role: str):
     if role == "sacerdote":
         await target_message.reply_text(
-            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da <b>sacerdote</b>.\n\n📜 Comandi principali:\n- <code>/mie_assegnazioni</code> → controlla i sacramenti che ti vengono assegnati (riceverai notifiche automatiche).\n- <code>/completa &lt;id prenotazione&gt;</code> → contrassegna una prenotazione come completata.\n\n⚠️ Ricorda: è tuo dovere verificare quotidianamente le assegnazioni.\n\nSe hai difficoltà o riscontri problemi contatta 👉 <b>Consiglio degli Anziani</b>.",
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Benvenuto! Questo bot ti aiuterà nelle tue mansioni da <b>sacerdote</b>.\n\n📜 Comandi principali:\n- <code>/mie_assegnazioni</code> → controlla i sacramenti che ti vengono assegnati (riceverai notifiche automatiche).\n\n⚠️ Ricorda: è tuo dovere verificare quotidianamente le assegnazioni.\n\nSe hai difficoltà o riscontri problemi contatta 👉 <b>Consiglio degli Anziani</b>.",
             parse_mode="HTML"
         )
     elif role == "segretario":
@@ -959,15 +959,59 @@ async def completa_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(new_keyboard))
     finally:
         session.close()
-
-
 async def back_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    complete_button = [InlineKeyboardButton("✝️ Completa una prenotazione", callback_data="completa_menu")]
-    await query.edit_message_reply_markup(
-        reply_markup=InlineKeyboardMarkup([complete_button])
-    )
+    priest_id = query.from_user.id
+
+    session = SessionLocal()
+    try:
+        # Recupera assegnazioni del sacerdote
+        assigns = (
+            session.query(Assignment)
+            .filter(Assignment.priest_telegram_id == priest_id)
+            .all()
+        )
+
+        # Costruisci testo lista assegnazioni
+        lines = [
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️",
+            "",
+            "📋 <b>Le tue assegnazioni</b>:"
+        ]
+
+        count_active = 0
+        for a in assigns:
+            b = session.query(Booking).get(a.booking_id)
+            if not b:
+                continue
+            # Mostra tutte, ma evidenzia quelle completabili
+            status = b.status.upper()
+            nick = (b.nickname_mc or "-").replace("_", " ")
+            sac = (b.sacrament or "-").replace("_", " ")
+            lines.append(f"- #{b.id} [{status}] • 🎮 {nick} • ✝️ {sac}")
+            if b.status in ("assigned", "in_progress"):
+                count_active += 1
+
+        if not assigns:
+            lines.append("ℹ️ Al momento non ti è stata assegnata alcuna prenotazione.")
+        else:
+            lines.append("")
+            if count_active == 0:
+                lines.append("ℹ️ Nessuna prenotazione attiva da completare.")
+
+        # Tastiera: entra nel flusso di completamento + refresh
+        keyboard = []
+        keyboard.append([InlineKeyboardButton("✝️ Completa una prenotazione", callback_data="completa_menu")])
+        keyboard.append([InlineKeyboardButton("🔄 Aggiorna elenco", callback_data="back_menu")])
+
+        await query.edit_message_text(
+            "\n".join(lines),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    finally:
+        session.close()
 
 # ---- CANCEL ----
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
