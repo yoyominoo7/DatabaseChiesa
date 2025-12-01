@@ -445,7 +445,8 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📌 Prenotazione registrata dal segretario: <b>{secretary_tag_safe}</b>\n\n"
             "⚠️ Ricorda di verificare i campi inseriti e di assegnarla il prima possibile a un sacerdote.",
             reply_markup=kb,
-            parse_mode="HTML"
+            parse_mode="HTML",
+            message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
         )
 
         # Salvo l'ID del messaggio originale per poterlo modificare dopo
@@ -485,7 +486,8 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             DIRECTORS_GROUP_ID,
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Seleziona il sacerdote per la prenotazione #{booking.id}:",
             reply_markup=InlineKeyboardMarkup(buttons),
-            parse_mode="HTML"
+            parse_mode="HTML",
+            message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
         )
 
         # Salva l'ID del messaggio per poterlo cancellare dopo
@@ -493,16 +495,19 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["assign_booking_id"] = booking.id
     finally:
         session.close()
-        
+
+
 # ---- DIREZIONE: CALLBACK scelta sacerdote ----
 async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     # Rimuovi il prefisso "do_assign_"
     data = query.data.replace("do_assign_", "")
     booking_id, priest_id = data.split("_")
     booking_id = int(booking_id)
     priest_id = int(priest_id)
+
     session = SessionLocal()
     try:
         booking = session.query(Booking).get(booking_id)
@@ -511,6 +516,7 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if not booking or not priest:
             await query.answer("❌ Errore: prenotazione o sacerdote non trovati.", show_alert=True)
             return
+
         # 🔹 Aggiorna stato prenotazione
         booking.status = "assigned"
         booking.updated_at = datetime.now(timezone.utc)
@@ -530,30 +536,37 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             details=f"to @{priest.username}"
         ))
         session.commit()
+
         # 🔹 Elimina messaggio con lista sacerdoti
         assign_msg_id = context.user_data.get("assign_msg_id")
         if assign_msg_id:
             await context.bot.delete_message(DIRECTORS_GROUP_ID, assign_msg_id)
+
         # 🔹 Rimuovi pulsante "Assegna" dal messaggio originale
         booking_msg_id = context.user_data.get(f"booking_msg_{booking.id}")
         if booking_msg_id:
             await context.bot.edit_message_reply_markup(
                 chat_id=DIRECTORS_GROUP_ID,
                 message_id=booking_msg_id,
-                reply_markup=None
+                reply_markup=None,
+                message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per topic
             )
+
         # 🔹 Notifica al gruppo Direzione
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ Prenotazione #{booking.id} <b>assegnata</b> a @{priest.username}.",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per topic
         )
-        # 🔹 Notifica al sacerdote
+
+        # 🔹 Notifica al sacerdote (qui NON serve il topic, va in chat privata)
         await context.bot.send_message(
             priest.telegram_id,
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Hey sacerdote! Ti è stata <b>assegnata una nuova prenotazione</b> (#{booking.id}).\n➡️ Utilizza <code>/mie_assegnazioni</code> per i dettagli.",
             parse_mode="HTML"
         )
+
         # 🔹 Pianifica job di notifica 48h
         context.job_queue.run_once(
             notify_uncompleted,
@@ -694,13 +707,11 @@ async def notify_uncompleted(context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 DIRECTORS_GROUP_ID,
                 f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ La prenotazione #{booking.id} assegnata al sacerdote <b>{job_data['username']}</b> non è stata completata entro <b>48 ore</b>.",
-                parse_mode="HTML"
+                parse_mode="HTML",
+                message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
             )
     finally:
         session.close()
-
-
-
 
 # ---- SACERDOTE: LISTA E COMPLETAMENTO ----
 @role_required(is_priest, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il permesso per eseguire il comando.")
@@ -884,6 +895,7 @@ async def completa_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         session.close()
         
+
 # ---- Callback: completa prenotazione ----
 async def completa_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -937,7 +949,8 @@ async def completa_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✝️ Sacramento <b>completato</b> #{b.id} da @{query.from_user.username or priest_id}.",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
         )
 
         # 🔹 Rimuovi bottone corrispondente
@@ -946,6 +959,8 @@ async def completa_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(new_keyboard))
     finally:
         session.close()
+
+
 async def back_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -961,8 +976,6 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
     return ConversationHandler.END
-
-
 async def check_sla(app):
     session = SessionLocal()
     try:
@@ -997,10 +1010,13 @@ async def check_sla(app):
                         f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n"
                         f"⚠️ ALERT: Prenotazione #{b.id} assegnata al sacerdote "
                         f"<b>{a.priest_telegram_id}</b> da oltre <b>48h</b>.",
-                        parse_mode="HTML"
+                        parse_mode="HTML",
+                        message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
                     )
     finally:
         session.close()
+
+
 @role_required(is_director, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Solo la <b>Direzione</b> può usare questo comando.")
 async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != DIRECTORS_GROUP_ID:
@@ -1022,9 +1038,9 @@ async def lista_prenotazioni(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(
         "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📋 Scegli il tipo di prenotazioni da visualizzare:",
         reply_markup=kb,
-        parse_mode="HTML"
+        parse_mode="HTML",
+        message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
     )
-
 
 async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1134,7 +1150,6 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                 bookings = [booking] if booking else []
                 title = last.get("title") or f"📋 Prenotazione #{bid}"
                 await _send_paginated_bookings(query, bookings, title, str(bid or ""), page=page)
-
             else:
                 kb = InlineKeyboardMarkup([
                     [InlineKeyboardButton("⏳ In attesa", callback_data="filter_pending")],
@@ -1163,20 +1178,25 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                     reply_markup=kb,
                     parse_mode="HTML"
                 )
+
         elif data == "search_fedele":
             msg = await query.message.reply_text(
                 "✍️ Inserisci il nickname del fedele con un messaggio in chat:",
-                parse_mode="HTML"
+                parse_mode="HTML",
+                message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 invio nel topic
             )
             context.user_data["search_mode"] = "fedele"
             context.user_data["last_prompt_message_id"] = msg.message_id
+
         elif data == "search_id":
             msg = await query.message.reply_text(
                 "✍️ Inserisci l'ID della prenotazione con un messaggio in chat:",
-                parse_mode="HTML"
+                parse_mode="HTML",
+                message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 invio nel topic
             )
             context.user_data["search_mode"] = "id"
             context.user_data["last_prompt_message_id"] = msg.message_id
+
         elif data == "close_panel":
             new_text = "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Pannello prenotazioni chiuso."
             if query.message.text != new_text:
@@ -1184,7 +1204,6 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
                     new_text,
                     parse_mode="HTML"
                 )
-
     finally:
         session.close()
 
@@ -1236,7 +1255,8 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
                 await update.message.reply_text(
                     f"❌ Nessuna prenotazione trovata per il fedele <b>{filtro}</b>.",
                     reply_markup=kb,
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 invio nel topic
                 )
         elif mode == "id":
             try:
@@ -1248,7 +1268,8 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
                 await update.message.reply_text(
                     "❌ Devi inserire un ID numerico valido.",
                     reply_markup=kb,
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 invio nel topic
                 )
                 return
 
@@ -1274,13 +1295,15 @@ async def lista_prenotazioni_search(update: Update, context: ContextTypes.DEFAUL
                 await update.message.reply_text(
                     f"❌ Nessuna prenotazione trovata con ID <b>{booking_id}</b>.",
                     reply_markup=kb,
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 invio nel topic
                 )
     finally:
         session.close()
 
     # 🔹 Reset modalità ricerca
     context.user_data["search_mode"] = None
+
 
 async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     if not bookings:
@@ -1290,7 +1313,7 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
         ])
 
         if isinstance(target, Message):
-            await target.reply_text(msg, reply_markup=kb, parse_mode="HTML")
+            await target.reply_text(msg, reply_markup=kb, parse_mode="HTML", message_thread_id=DIRECTORS_TOPIC_ID)
         elif isinstance(target, CallbackQuery):
             if target.message.text != msg or target.message.reply_markup != kb:
                 await target.edit_message_text(msg, reply_markup=kb, parse_mode="HTML")
@@ -1353,7 +1376,7 @@ async def _send_paginated_bookings(target, bookings, titolo, filtro, page=1):
     kb = InlineKeyboardMarkup(keyboard)
 
     if isinstance(target, Message):
-        await target.reply_text(text, reply_markup=kb, parse_mode="HTML")
+        await target.reply_text(text, reply_markup=kb, parse_mode="HTML", message_thread_id=DIRECTORS_TOPIC_ID)
     elif isinstance(target, CallbackQuery):
         if target.message.text != text or target.message.reply_markup != kb:
             await target.edit_message_text(text, reply_markup=kb, parse_mode="HTML")
@@ -1418,27 +1441,34 @@ async def weekly_report(app):
         now = datetime.now(timezone.utc)
         # Inizio settimana (lunedì)
         start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-        # Fine settimana (domenica)
-        end = start + timedelta(days=7)
+        # Fine settimana (domenica inclusa)
+        end = start + timedelta(days=6, hours=23, minutes=59, seconds=59)
 
         # Prenotazioni completate nella settimana
         completed = session.query(Booking).filter(
             Booking.status == "completed",
             Booking.updated_at >= start,
-            Booking.updated_at < end
+            Booking.updated_at <= end
         ).all()
 
         total = len(completed)
 
-        # Classifica per sacerdote
+        # Classifica per sacerdote con dettaglio sacramenti
         per_priest = {}
+        priest_sacraments = {}
         for b in completed:
             a = session.query(Assignment).filter(Assignment.booking_id == b.id).first()
             pid = a.priest_telegram_id if a else None
             if pid:
                 per_priest[pid] = per_priest.get(pid, 0) + 1
+                if b.sacrament:
+                    sac_list = [s.strip() for s in b.sacrament.split(",")]
+                    if pid not in priest_sacraments:
+                        priest_sacraments[pid] = {}
+                    for sac in sac_list:
+                        priest_sacraments[pid][sac] = priest_sacraments[pid].get(sac, 0) + 1
 
-        # Conteggio per sacramento
+        # Conteggio per sacramento globale
         per_sacrament = {}
         for b in completed:
             if b.sacrament:
@@ -1466,12 +1496,21 @@ async def weekly_report(app):
             for pid, num in sorted(per_priest.items(), key=lambda x: x[1], reverse=True):
                 priest = session.query(Priest).filter(Priest.telegram_id == pid).first()
                 priest_tag = f"@{priest.username}" if priest and priest.username else str(pid)
-                lines.append(f"- 🙏 Sacerdote <b>{priest_tag}</b>: {num}")
+                detail = []
+                if pid in priest_sacraments:
+                    for sac, count in priest_sacraments[pid].items():
+                        sac_name = sac.replace("_", " ")
+                        if count > 1:
+                            detail.append(f"{sac_name} ({count} volte)")
+                        else:
+                            detail.append(sac_name)
+                detail_str = ", ".join(detail) if detail else "Nessun sacramento registrato"
+                lines.append(f"- 🙏 Sacerdote <b>{priest_tag}</b>: {num} ➝ {detail_str}")
         else:
             lines.append("ℹ️ Nessun sacramento completato dai sacerdoti questa settimana.")
 
         lines.append("")
-        lines.append("✝️ <b>Dettaglio per sacramento:</b>")
+        lines.append("✝️ <b>Dettaglio per sacramento (totale):</b>")
         if per_sacrament:
             for sac, num in per_sacrament.items():
                 lines.append(f"- {sac.replace('_',' ')}: {num}")
@@ -1481,8 +1520,13 @@ async def weekly_report(app):
         lines.append("")
         lines.append(f"📌 Prenotazioni ancora <b>aperte</b>: {open_items}")
 
-        # Invio al gruppo direzione
-        await app.bot.send_message(DIRECTORS_GROUP_ID, "\n".join(lines), parse_mode="HTML")
+        # Invio al gruppo direzione nel topic configurato
+        await app.bot.send_message(
+            DIRECTORS_GROUP_ID,
+            "\n".join(lines),
+            parse_mode="HTML",
+            message_thread_id=DIRECTORS_TOPIC_ID
+        )
 
     finally:
         session.close()
