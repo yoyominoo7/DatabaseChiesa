@@ -549,8 +549,7 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await context.bot.edit_message_reply_markup(
                 chat_id=DIRECTORS_GROUP_ID,
                 message_id=booking_msg_id,
-                reply_markup=None,
-                message_thread_id=DIRECTORS_TOPIC_ID
+                reply_markup=None   # 🔹 niente message_thread_id qui
             )
 
         # 🔹 Notifica al gruppo Direzione
@@ -577,7 +576,6 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
     finally:
         session.close()
-
 
 @role_required(is_director, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il permesso per eseguire questo comando.")
 async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
