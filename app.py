@@ -33,6 +33,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+booking_msg_map = {}
 
 # ---- ENV ----
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -434,7 +435,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("➕ Assegna", callback_data=f"assign_{booking.id}")]
         ])
 
-        # 🔹 Salviamo l'ID del messaggio originale della prenotazione
+        # 🔹 Salviamo l'ID del messaggio originale della prenotazione in mappa globale
         msg = await context.bot.send_message(
             DIRECTORS_GROUP_ID,
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📢 È presente una nuova <b>prenotazione</b>! (ID #{booking.id})\n\n"
@@ -446,15 +447,15 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ Ricorda di verificare i campi inseriti e di assegnarla il prima possibile a un sacerdote.",
             reply_markup=kb,
             parse_mode="HTML",
-            message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
+            message_thread_id=DIRECTORS_TOPIC_ID
         )
 
-        # Salvo l'ID del messaggio originale per poterlo modificare dopo
-        context.user_data[f"booking_msg_{booking.id}"] = msg.message_id
+        booking_msg_map[booking.id] = msg.message_id   # 🔹 salva globalmente
 
         return ConversationHandler.END
     finally:
         session.close()
+
 
 # ---- DIREZIONE: CALLBACK "Assegna" ----
 async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -542,14 +543,14 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if assign_msg_id:
             await context.bot.delete_message(DIRECTORS_GROUP_ID, assign_msg_id)
 
-        # 🔹 Rimuovi pulsante "Assegna" dal messaggio originale
-        booking_msg_id = context.user_data.get(f"booking_msg_{booking.id}")
+        # 🔹 Rimuovi pulsante "Assegna" dal messaggio originale (usando mappa globale)
+        booking_msg_id = booking_msg_map.get(booking.id)
         if booking_msg_id:
             await context.bot.edit_message_reply_markup(
                 chat_id=DIRECTORS_GROUP_ID,
                 message_id=booking_msg_id,
                 reply_markup=None,
-                message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per topic
+                message_thread_id=DIRECTORS_TOPIC_ID
             )
 
         # 🔹 Notifica al gruppo Direzione
@@ -557,7 +558,7 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             DIRECTORS_GROUP_ID,
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ Prenotazione #{booking.id} <b>assegnata</b> a @{priest.username}.",
             parse_mode="HTML",
-            message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per topic
+            message_thread_id=DIRECTORS_TOPIC_ID
         )
 
         # 🔹 Notifica al sacerdote (qui NON serve il topic, va in chat privata)
@@ -576,6 +577,7 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
     finally:
         session.close()
+
 
 @role_required(is_director, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il permesso per eseguire questo comando.")
 async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1419,16 +1421,26 @@ async def handle_remove_callback(update: Update, context: ContextTypes.DEFAULT_T
                     f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Prenotazioni <b>non trovate</b>: {', '.join(map(str, not_found))}"
                 )
 
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
+            ])
+
             await query.edit_message_text(
                 "\n".join(msg_parts) if msg_parts else
                 "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Nessuna prenotazione rimossa.",
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=kb
             )
 
         elif data == "cancel_remove":
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Torna al pannello principale", callback_data="back_main")]
+            ])
+
             await query.edit_message_text(
                 "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Rimozione <b>annullata</b>.",
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=kb
             )
 
     finally:
