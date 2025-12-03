@@ -149,19 +149,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             priest = session.query(Priest).filter_by(telegram_id=user_id).first()
             if priest:
-                priest.username = user.username
+                # Aggiorna username se è cambiato
+                if priest.username != user.username:
+                    priest.username = user.username
+                    session.add(priest)
             else:
-                priest = Priest(telegram_id=user_id, username=user.username)
+                # Crea nuovo sacerdote
+                priest = Priest(
+                    telegram_id=user_id,
+                    username=user.username,
+                    created_at=datetime.now()
+                )
                 session.add(priest)
             session.commit()
+        except Exception:
+            session.rollback()
+            raise
         finally:
             session.close()
         roles.append("sacerdote")
+
     if is_secretary(user_id):
         roles.append("segretario")
     if is_director(user_id):
         roles.append("direzione")
-
     # Nessun ruolo
     if not roles:
         await update.message.reply_text(
