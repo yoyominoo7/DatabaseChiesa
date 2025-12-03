@@ -145,6 +145,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     roles = []
     if is_priest(user_id):
+        session = SessionLocal()
+        try:
+            priest = session.query(Priest).filter_by(telegram_id=user_id).first()
+            if priest:
+                priest.username = user.username
+            else:
+                priest = Priest(telegram_id=user_id, username=user.username)
+                session.add(priest)
+            session.commit()
+        finally:
+            session.close()
         roles.append("sacerdote")
     if is_secretary(user_id):
         roles.append("segretario")
