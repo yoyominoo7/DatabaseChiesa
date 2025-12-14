@@ -478,7 +478,6 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         session.close()
 
-
 # ---- DIREZIONE: CALLBACK "Assegna" ----
 async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -497,20 +496,49 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("⚠️ Prenotazione non valida o già assegnata.", show_alert=True)
             return
 
-        # Costruisci lista sacerdoti
+        # 🔹 Calcolo settimana corrente (lunedì ➝ domenica)
+        now = datetime.now(timezone.utc)
+        start_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_week = start_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+        # 🔹 Conteggio assegnazioni per sacerdote nella settimana
+        assigns_week = (
+            session.query(Assignment.priest_telegram_id, func.count(Assignment.id))
+            .join(Booking, Booking.id == Assignment.booking_id)
+            .filter(Booking.updated_at >= start_week, Booking.updated_at <= end_week)
+            .group_by(Assignment.priest_telegram_id)
+            .all()
+        )
+        counts = {pid: cnt for pid, cnt in assigns_week}
+
+        # 🔹 Trova i 3 sacerdoti con meno assegnazioni
         priests = session.query(Priest).all()
+        sorted_priests = sorted(priests, key=lambda p: counts.get(p.telegram_id, 0))
+        top3 = sorted_priests[:3]
+
+        # 🔹 Costruisci lista bottoni
         buttons = [
             [InlineKeyboardButton(f"@{p.username}", callback_data=f"do_assign_{booking_id}_{p.telegram_id}")]
             for p in priests
         ]
         buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="cancel_assign")])
 
+        # 🔹 Testo con suggerimento dei 3 sacerdoti con meno assegnazioni
+        suggestion_lines = []
+        for p in top3:
+            suggestion_lines.append(
+                f"- @{p.username}: {counts.get(p.telegram_id, 0)} assegnazioni"
+            )
+        suggestion_text = "\n".join(suggestion_lines) if suggestion_lines else "ℹ️ Nessun dato disponibile."
+
         msg = await context.bot.send_message(
             DIRECTORS_GROUP_ID,
-            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Seleziona il sacerdote per la prenotazione #{booking.id}:",
+            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n"
+            f"🙏 Seleziona il sacerdote per la prenotazione #{booking.id}:\n\n"
+            f"📊 <b>I 3 sacerdoti con meno assegnazioni questa settimana:</b>\n{suggestion_text}",
             reply_markup=InlineKeyboardMarkup(buttons),
             parse_mode="HTML",
-            message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
+            message_thread_id=DIRECTORS_TOPIC_ID
         )
 
         # Salva l'ID del messaggio per poterlo cancellare dopo
@@ -518,6 +546,7 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["assign_booking_id"] = booking.id
     finally:
         session.close()
+
 
 
 # ---- DIREZIONE: CALLBACK scelta sacerdote ----
