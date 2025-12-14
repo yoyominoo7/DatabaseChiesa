@@ -1,7 +1,7 @@
 import os
 import logging
 from datetime import datetime, timedelta, timezone, time
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, BigInteger
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, BigInteger, func
 from telegram.helpers import escape_markdown
 import html
 from telegram import (
