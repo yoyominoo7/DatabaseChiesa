@@ -759,7 +759,7 @@ async def notify_uncompleted(context: ContextTypes.DEFAULT_TYPE):
                 DIRECTORS_GROUP_ID,
                 f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ La prenotazione #{booking.id} assegnata al sacerdote <b>{job_data['username']}</b> non è stata completata entro <b>48 ore</b>.",
                 parse_mode="HTML",
-                message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
+                message_thread_id=DIRECTORS_TOPIC_ID
             )
     finally:
         session.close()
@@ -1088,45 +1088,6 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
     return ConversationHandler.END
-async def check_sla(app):
-    session = SessionLocal()
-    try:
-        now = datetime.now(timezone.utc)
-        threshold = now - timedelta(hours=48)
-        overdue = session.query(Assignment).all()
-        for a in overdue:
-            b = session.query(Booking).get(a.booking_id)
-            if not b or b.status == "completed":
-                continue
-
-            ref_time = a.taken_at or a.assigned_at
-            if ref_time:
-                # Normalizza ref_time in UTC
-                if ref_time.tzinfo is None:
-                    ref_time = ref_time.replace(tzinfo=timezone.utc)
-                else:
-                    ref_time = ref_time.astimezone(timezone.utc)
-
-                if ref_time < threshold and not a.due_alert_sent:
-                    a.due_alert_sent = True
-                    session.add(a)
-                    session.add(EventLog(
-                        booking_id=b.id,
-                        actor_id=0,
-                        action="alert",
-                        details="48h SLA"
-                    ))
-                    session.commit()
-                    await app.bot.send_message(
-                        DIRECTORS_GROUP_ID,
-                        f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n"
-                        f"⚠️ ALERT: Prenotazione #{b.id} assegnata al sacerdote "
-                        f"<b>{a.priest_telegram_id}</b> da oltre <b>48h</b>.",
-                        parse_mode="HTML",
-                        message_thread_id=DIRECTORS_TOPIC_ID   # 🔹 aggiunto parametro per inviare nel topic
-                    )
-    finally:
-        session.close()
 
 
 @role_required(is_director, "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Solo la <b>Direzione</b> può usare questo comando.")
@@ -1642,14 +1603,6 @@ async def weekly_report(app):
         lines.append("")
         lines.append(f"📌 Prenotazioni ancora <b>aperte</b>: {open_items}")
 
-        # Invio al gruppo direzione nel topic configurato
-        await app.bot.send_message(
-            DIRECTORS_GROUP_ID,
-            "\n".join(lines),
-            parse_mode="HTML",
-            message_thread_id=DIRECTORS_TOPIC_ID
-        )
-
     finally:
         session.close()
 
@@ -1735,7 +1688,6 @@ def build_application():
 
     # --- Scheduler ---
     scheduler = AsyncIOScheduler(timezone="UTC")
-    scheduler.add_job(check_sla, "interval", hours=1, args=[app])
     scheduler.add_job(weekly_report, "cron", day_of_week="sun", hour=23, minute=55, args=[app])
     scheduler.start()
 
