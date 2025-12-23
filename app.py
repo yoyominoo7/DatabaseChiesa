@@ -486,22 +486,19 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_director(update.effective_user.id):
         await query.answer("❌ Non hai il permesso.", show_alert=True)
         return
-
     booking_id = int(query.data.replace("assign_", ""))
-
     session = SessionLocal()
     try:
         booking = session.query(Booking).get(booking_id)
         if not booking or booking.status != "pending":
             await query.answer("⚠️ Prenotazione non valida o già assegnata.", show_alert=True)
             return
-
         # 🔹 Calcolo settimana corrente (lunedì ➝ domenica)
         now = datetime.now(timezone.utc)
         start_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
         end_week = start_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
 
-        # 🔹 Conteggio assegnazioni per sacerdote nella settimana
+        # 🔹 Conteggio assegnazioni settimanali
         assigns_week = (
             session.query(Assignment.priest_telegram_id, func.count(Assignment.id))
             .join(Booking, Booking.id == Assignment.booking_id)
@@ -511,41 +508,60 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         counts = {pid: cnt for pid, cnt in assigns_week}
 
-        # 🔹 Trova i 3 sacerdoti con meno assegnazioni
-        priests = session.query(Priest).all()
-        sorted_priests = sorted(priests, key=lambda p: counts.get(p.telegram_id, 0))
+        # 🔹 Recupera tutti i sacerdoti
+        all_priests = session.query(Priest).all()
+
+        # 🔹 Filtri ruoli
+        real_priests = [p for p in all_priests if not is_director(p.telegram_id) and not is_secretary(p.telegram_id)]
+        secretaries = [p for p in all_priests if is_secretary(p.telegram_id)]
+        directors = [p for p in all_priests if is_director(p.telegram_id)]  # solo per completezza
+
+        # 🔹 Ordina sacerdoti per assegnazioni settimanali
+        sorted_priests = sorted(real_priests, key=lambda p: counts.get(p.telegram_id, 0))
         top3 = sorted_priests[:3]
 
-        # 🔹 Costruisci lista bottoni
+        # 🔹 Costruisci bottoni SOLO per sacerdoti e segretari
+        selectable = real_priests + secretaries
         buttons = [
             [InlineKeyboardButton(f"@{p.username}", callback_data=f"do_assign_{booking_id}_{p.telegram_id}")]
-            for p in priests
+            for p in selectable
         ]
         buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="cancel_assign")])
 
-        # 🔹 Testo con suggerimento dei 3 sacerdoti con meno assegnazioni
-        suggestion_lines = []
+        # 🔹 Testo suggerimento sacerdoti
+        priest_lines = []
         for p in top3:
-            suggestion_lines.append(
+            priest_lines.append(
                 f"- @{p.username}: {counts.get(p.telegram_id, 0)} assegnazioni"
             )
-        suggestion_text = "\n".join(suggestion_lines) if suggestion_lines else "ℹ️ Nessun dato disponibile."
+        priest_text = "\n".join(priest_lines) if priest_lines else "ℹ️ Nessun sacerdote disponibile."
 
+        # 🔹 Testo riepilogo segretari
+        secretary_lines = []
+        for s in secretaries:
+            secretary_lines.append(
+                f"- @{s.username}: {counts.get(s.telegram_id, 0)} assegnazioni"
+            )
+        secretary_text = "\n".join(secretary_lines) if secretary_lines else "ℹ️ Nessun segretario registrato."
+
+        # 🔹 Messaggio finale
         msg = await context.bot.send_message(
             DIRECTORS_GROUP_ID,
             f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n"
             f"🙏 Seleziona il sacerdote per la prenotazione #{booking.id}:\n\n"
-            f"📊 <b>I 3 sacerdoti con meno assegnazioni questa settimana:</b>\n{suggestion_text}",
+            f"📊 <b>I 3 sacerdoti con meno assegnazioni questa settimana:</b>\n{priest_text}\n\n"
+            f"🗂 <b>Riepilogo segretari (devono ricevere meno incarichi):</b>\n{secretary_text}",
             reply_markup=InlineKeyboardMarkup(buttons),
             parse_mode="HTML",
             message_thread_id=DIRECTORS_TOPIC_ID
         )
 
-        # Salva l'ID del messaggio per poterlo cancellare dopo
         context.user_data["assign_msg_id"] = msg.message_id
         context.user_data["assign_booking_id"] = booking.id
+
     finally:
         session.close()
+
 
 
 
@@ -777,18 +793,30 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
     priest_id = update.effective_user.id
     session = SessionLocal()
     try:
-        assigns = (
+        assigns_raw = (
             session.query(Assignment)
             .filter(Assignment.priest_telegram_id == priest_id)
-            .order_by(Assignment.id.desc())
             .all()
         )
-        if not assigns:
+
+        if not assigns_raw:
             await update.message.reply_text(
                 "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Al momento non ti è stata <b>assegnata alcuna prenotazione</b>, ma questo durerà ancora per poco!",
                 parse_mode="HTML"
             )
             return
+
+        # 🔹 Ordina: prima assigned, poi in_progress, poi completed
+        assigns = sorted(
+            assigns_raw,
+            key=lambda a: (
+                {"assigned": 0, "in_progress": 1, "completed": 2}.get(
+                    session.query(Booking).get(a.booking_id).status,
+                    2
+                ),
+                -a.id
+            )
+        )
 
         per_page = 5
         page = int(context.args[0]) if context.args else 1
@@ -803,6 +831,7 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
             b = session.query(Booking).get(a.booking_id)
             if not b:
                 continue
+
             if b.status == "assigned":
                 msgs.append(
                     f"⚠️ <b>#{b.id} [DA COMPLETARE]</b> - {b.sacrament.replace('_',' ')}\n"
@@ -828,7 +857,7 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if page < total_pages:
             buttons_nav.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"assign_page_{page+1}"))
 
-        # Bottone completamento su riga separata
+        # Bottone completamento
         button_complete = [InlineKeyboardButton("✝️ Completa una prenotazione", callback_data="completa_menu")]
 
         if buttons_nav:
@@ -839,8 +868,6 @@ async def mie_assegnazioni(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text, reply_markup=kb, parse_mode="HTML")
     finally:
         session.close()
-
-
 async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -849,18 +876,30 @@ async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TY
     priest_id = query.from_user.id
     session = SessionLocal()
     try:
-        assigns = (
+        assigns_raw = (
             session.query(Assignment)
             .filter(Assignment.priest_telegram_id == priest_id)
-            .order_by(Assignment.id.desc())
             .all()
         )
-        if not assigns:
+
+        if not assigns_raw:
             await query.edit_message_text(
                 "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\nℹ️ Al momento non ti è stata <b>assegnata alcuna prenotazione</b>.",
                 parse_mode="HTML"
             )
             return
+
+        # 🔹 Ordina: prima assigned, poi in_progress, poi completed
+        assigns = sorted(
+            assigns_raw,
+            key=lambda a: (
+                {"assigned": 0, "in_progress": 1, "completed": 2}.get(
+                    session.query(Booking).get(a.booking_id).status,
+                    2
+                ),
+                -a.id
+            )
+        )
 
         per_page = 5
         total_pages = (len(assigns) + per_page - 1) // per_page
@@ -873,6 +912,7 @@ async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TY
             b = session.query(Booking).get(a.booking_id)
             if not b:
                 continue
+
             if b.status == "assigned":
                 msgs.append(
                     f"⚠️ <b>#{b.id} [DA COMPLETARE]</b> - {b.sacrament.replace('_',' ')}\n"
@@ -898,7 +938,7 @@ async def mie_assegnazioni_page(update: Update, context: ContextTypes.DEFAULT_TY
         if page < total_pages:
             buttons_nav.append(InlineKeyboardButton("Avanti ➡️", callback_data=f"assign_page_{page+1}"))
 
-        # Bottone completamento su riga separata
+        # Bottone completamento
         button_complete = [InlineKeyboardButton("✝️ Completa una prenotazione", callback_data="completa_menu")]
 
         if buttons_nav:
@@ -1603,6 +1643,14 @@ async def weekly_report(app):
         lines.append("")
         lines.append(f"📌 Prenotazioni ancora <b>aperte</b>: {open_items}")
 
+        # Invio al gruppo direzione nel topic configurato
+        await app.bot.send_message(
+            DIRECTORS_GROUP_ID,
+            "\n".join(lines),
+            parse_mode="HTML",
+            message_thread_id=DIRECTORS_TOPIC_ID
+        )
+
     finally:
         session.close()
 
@@ -1663,33 +1711,23 @@ def build_application():
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern="^(confirm_remove_|cancel_remove)"))
     app.add_handler(CommandHandler("get_topic_id", get_topic_id))
-
     # 🔹 Assegnazioni tramite pulsanti
     app.add_handler(CallbackQueryHandler(assign_callback, pattern=r"^assign_\d+$"))
     app.add_handler(CallbackQueryHandler(do_assign_callback, pattern=r"^do_assign_\d+_\d+$"))
-
     # 🔹 Pannello avanzato prenotazioni
     app.add_handler(CallbackQueryHandler(
         lista_prenotazioni_callback,
         pattern="^(filter_|priest_|priestfilter_|bookings_page_|back_main|search_fedele|search_id|close_panel)"
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lista_prenotazioni_search))
-
     # --- Sacerdoti ---
     app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
-
     # 🔹 Paginazione assegnazioni
     app.add_handler(CallbackQueryHandler(mie_assegnazioni_page, pattern=r"^assign_page_\d+$"))
-
     # 🔹 Completamento prenotazioni (inline)
     app.add_handler(CallbackQueryHandler(completa_menu, pattern=r"^completa_menu$"))
     app.add_handler(CallbackQueryHandler(completa_booking, pattern=r"^completa_\d+$"))
     app.add_handler(CallbackQueryHandler(back_menu, pattern=r"^back_menu$"))
-
-    # --- Scheduler ---
-    scheduler = AsyncIOScheduler(timezone="UTC")
-    scheduler.add_job(weekly_report, "cron", day_of_week="sun", hour=23, minute=55, args=[app])
-    scheduler.start()
 
     return app
 
