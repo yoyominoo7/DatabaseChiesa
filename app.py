@@ -699,19 +699,18 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 🔙 Torna alla lista prenotazioni del sacerdote (con paginazione)
+    # 🔙 Torna alla lista prenotazioni del sacerdote
     if data == "reassign_back_to_bookings":
         context.user_data["reassign_page"] = 1
         await show_reassign_bookings_page(query, context)
         return
 
-    # 🔄 Paginazione: pagina precedente
+    # 🔄 Paginazione
     if data == "reassign_page_prev":
         context.user_data["reassign_page"] -= 1
         await show_reassign_bookings_page(query, context)
         return
 
-    # 🔄 Paginazione: pagina successiva
     if data == "reassign_page_next":
         context.user_data["reassign_page"] += 1
         await show_reassign_bookings_page(query, context)
@@ -750,6 +749,7 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_reassign_bookings_page(query, context)
         return
 
+    # 2️⃣ Scelta prenotazione → esegui riassegnamento
     if data.startswith("reassign_choose_booking_"):
         booking_id = int(data.replace("reassign_choose_booking_", ""))
         priest_id = context.user_data.get("reassign_priest")
@@ -767,6 +767,7 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔄 Prenotazione #{booking_id} riassegnata a @{username}.",
             parse_mode="HTML"
         )
+
 
 async def show_reassign_bookings_page(query, context):
     bookings = context.user_data.get("reassign_bookings", [])
@@ -800,6 +801,7 @@ async def show_reassign_bookings_page(query, context):
         reply_markup=InlineKeyboardMarkup(buttons),
         parse_mode="HTML"
     )
+
 
 async def complete_reassign(update, context, booking_id, priest_id, username):
     session = SessionLocal()
