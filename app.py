@@ -527,7 +527,6 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n"
                 f"📑 Il <b>divorzio</b> è stato <i>registrato correttamente</i>! (ID #{booking.id})\n\n"
                 "📋 Resoconto delle informazioni inserite:\n\n"
-                f"• 👤 Contatto Telegram: <b>{rp_name}</b>\n"
                 f"• 🎮 Nick: <b>{nickname_mc}</b>\n"
                 f"• 💔 Divorzio registrato\n"
                 f"• 📝 Motivo: <b>{safe_notes}</b>",
@@ -551,7 +550,6 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 DIRECTORS_GROUP_ID,
                 f"<b>📑 NUOVA REGISTRAZIONE DI DIVORZIO</b> (ID #{booking.id})\n\n"
-                f"• 👤 Contatto Telegram: <b>{rp_name}</b>\n"
                 f"• 🎮 Nick: <b>{nickname_mc}</b>\n"
                 f"• 💔 Divorzio registrato\n"
                 f"• 📝 Motivo: <b>{safe_notes}</b>\n\n"
