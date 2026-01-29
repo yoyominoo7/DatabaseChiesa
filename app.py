@@ -1455,7 +1455,7 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             try:
                 await query.message.delete()
             except:
-            pass
+                pass
     finally:
         session.close()
 
