@@ -699,7 +699,7 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 🔙 Torna alla lista prenotazioni del sacerdote
+    # 🔙 Torna alla lista prenotazioni (paginata)
     if data == "reassign_back_to_bookings":
         context.user_data["reassign_page"] = 1
         await show_reassign_bookings_page(query, context)
@@ -716,33 +716,28 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_reassign_bookings_page(query, context)
         return
 
-    # 1️⃣ Scelta sacerdote
+    # 1️⃣ Scelta sacerdote destinatario
     if data.startswith("reassign_choose_priest_"):
         priest_id = int(data.replace("reassign_choose_priest_", ""))
         context.user_data["reassign_priest"] = priest_id
 
+        # 🔎 Recupera TUTTE le prenotazioni assegnate e non completate
         session = SessionLocal()
         try:
-            assigns = session.query(Assignment).filter(
-                Assignment.priest_telegram_id == priest_id
+            bookings = session.query(Booking).filter(
+                Booking.status == "assigned"
             ).all()
-
-            bookings = [
-                session.query(Booking).get(a.booking_id)
-                for a in assigns
-                if session.query(Booking).get(a.booking_id)
-                and session.query(Booking).get(a.booking_id).status == "assigned"
-            ]
         finally:
             session.close()
 
         if not bookings:
             await query.edit_message_text(
-                "<b>❌ Questo sacerdote non ha prenotazioni assegnate.</b>",
+                "<b>❌ Non ci sono prenotazioni assegnate da riassegnare.</b>",
                 parse_mode="HTML"
             )
             return
 
+        # Salva lista prenotazioni e pagina corrente
         context.user_data["reassign_bookings"] = [b.id for b in bookings]
         context.user_data["reassign_page"] = 1
 
@@ -767,7 +762,6 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔄 Prenotazione #{booking_id} riassegnata a @{username}.",
             parse_mode="HTML"
         )
-
 
 async def show_reassign_bookings_page(query, context):
     bookings = context.user_data.get("reassign_bookings", [])
