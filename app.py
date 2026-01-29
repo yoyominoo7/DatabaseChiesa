@@ -844,7 +844,7 @@ async def complete_reassign(update, context, booking_id, priest_id, username):
         try:
             await context.bot.send_message(
                 priest_id,
-                f"🙏 Ti è stata riassegnata la prenotazione #{booking.id}.",
+                f"𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄 ⚓️\n\n🙏 Hey sacerdote! Ti è appena stata riassegnata una prenotazione #{booking.id}.\n➡️ Utilizza /mie_assegnazioni per i dettagli.",
                 parse_mode="HTML"
             )
         except:
