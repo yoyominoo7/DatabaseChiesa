@@ -3,7 +3,7 @@ import threading
 from flask import Flask
 from datetime import time
 from app import build_application, weekly_report
-
+import pytz
 # --- Flask web server ---
 flask_app = Flask(__name__)
 
@@ -11,11 +11,12 @@ flask_app = Flask(__name__)
 def home():
     return "Bot is running!"
 
+ROME_TZ = pytz.timezone("Europe/Rome")
+
 def schedule_jobs(application):
-    # Pianifica il job settimanale: ogni lunedì alle 9:00
     application.job_queue.run_daily(
         weekly_report,
-        time=time(hour=9, minute=0),
+        time=time(hour=10, minute=0, tzinfo=ROME_TZ),  # 10:00 ora italiana
         days=(0,),  # 0 = lunedì
         name="weekly_report_job"
     )
