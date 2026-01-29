@@ -501,7 +501,6 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         start_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
         end_week = start_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
 
-        # 🔹 Conteggio assegnazioni settimanali
         assigns_week = (
             session.query(Assignment.priest_telegram_id, func.count(Assignment.id))
             .join(Booking, Booking.id == Assignment.booking_id)
@@ -511,16 +510,13 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         counts = {pid: cnt for pid, cnt in assigns_week}
 
-        # 🔹 Recupera tutti i sacerdoti
         all_priests = session.query(Priest).all()
 
-        # 🔹 Filtri ruoli
         real_priests = [
             p for p in all_priests
             if not is_director(p.telegram_id) and not is_secretary(p.telegram_id)
         ]
 
-        # 🔹 Segretari REALI (escludi direttori)
         secretaries = [
             p for p in all_priests
             if is_secretary(p.telegram_id) and not is_director(p.telegram_id)
@@ -565,10 +561,8 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
             message_thread_id=DIRECTORS_TOPIC_ID
         )
-
         context.user_data["assign_msg_id"] = msg.message_id
         context.user_data["assign_booking_id"] = booking.id
-
     finally:
         session.close()
 
@@ -576,13 +570,11 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     # Rimuovi il prefisso "do_assign_"
     data = query.data.replace("do_assign_", "")
     booking_id, priest_id = data.split("_")
     booking_id = int(booking_id)
     priest_id = int(priest_id)
-
     session = SessionLocal()
     try:
         booking = session.query(Booking).get(booking_id)
@@ -616,7 +608,6 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         assign_msg_id = context.user_data.get("assign_msg_id")
         if assign_msg_id:
             await context.bot.delete_message(DIRECTORS_GROUP_ID, assign_msg_id)
-
         # 🔹 Rimuovi pulsante "Assegna" dal messaggio originale (usando mappa globale)
         booking_msg_id = booking_msg_map.get(booking.id)
         if booking_msg_id:
@@ -625,7 +616,6 @@ async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 message_id=booking_msg_id,
                 reply_markup=None   # 🔹 niente message_thread_id qui
             )
-
         # 🔹 Notifica al gruppo Direzione
         await context.bot.send_message(
             DIRECTORS_GROUP_ID,
@@ -660,74 +650,180 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    args = update.message.text.split()
-    if len(args) < 3:
-        await update.message.reply_text(
-            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Sintassi errata!\n\n➡️ Utilizzo corretto: <code>/riassegna &lt;id richiesta&gt; &lt;@username&gt;</code>",
-            parse_mode="HTML"
-        )
-        return
-
-    booking_id = int(args[1])
-    target = args[2]
-
-    if not target.startswith("@"):
-        await update.message.reply_text(
-            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Devi specificare l'<b>@username</b> del sacerdote (es. @nomeutente).",
-            parse_mode="HTML"
-        )
-        return
-
-    username = target.lstrip("@")
-
     session = SessionLocal()
     try:
-        priest = session.query(Priest).filter_by(username=username).first()
-        if not priest:
-            await update.message.reply_text(
-                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Username non valido o sacerdote non registrato.",
+        priests = session.query(Priest).all()
+    finally:
+        session.close()
+
+    buttons = [
+        [InlineKeyboardButton(f"@{p.username}", callback_data=f"reassign_choose_priest_{p.telegram_id}")]
+        for p in priests
+    ]
+    buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="reassign_cancel")])
+
+    await update.message.reply_text(
+        "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Scegli il sacerdote a cui vuoi riassegnare una prenotazione:",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="HTML"
+    )
+
+async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    # ❌ Annulla
+    if data == "reassign_cancel":
+        await query.message.delete()
+        return
+
+    # 🔙 Torna alla lista sacerdoti
+    if data == "reassign_back_to_priests":
+        session = SessionLocal()
+        try:
+            priests = session.query(Priest).all()
+        finally:
+            session.close()
+
+        buttons = [
+            [InlineKeyboardButton(f"@{p.username}", callback_data=f"reassign_choose_priest_{p.telegram_id}")]
+            for p in priests
+        ]
+        buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="reassign_cancel")])
+
+        await query.edit_message_text(
+            "<b>🙏 Scegli il sacerdote a cui vuoi riassegnare una prenotazione:</b>",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode="HTML"
+        )
+        return
+
+    # 🔙 Torna alla lista prenotazioni del sacerdote
+    if data == "reassign_back_to_bookings":
+        priest_id = context.user_data.get("reassign_priest")
+
+        session = SessionLocal()
+        try:
+            assigns = session.query(Assignment).filter(
+                Assignment.priest_telegram_id == priest_id
+            ).all()
+
+            bookings = [
+                session.query(Booking).get(a.booking_id)
+                for a in assigns
+                if session.query(Booking).get(a.booking_id) and
+                   session.query(Booking).get(a.booking_id).status == "assigned"
+            ]
+        finally:
+            session.close()
+
+        buttons = [
+            [InlineKeyboardButton(f"Prenotazione #{b.id}", callback_data=f"reassign_choose_booking_{b.id}")]
+            for b in bookings
+        ]
+        buttons.append([InlineKeyboardButton("⬅️ Indietro", callback_data="reassign_back_to_priests")])
+        buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="reassign_cancel")])
+
+        await query.edit_message_text(
+            "<b>📋 Seleziona la prenotazione da riassegnare:</b>",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode="HTML"
+        )
+        return
+
+    # 1️⃣ Scelta sacerdote
+    if data.startswith("reassign_choose_priest_"):
+        priest_id = int(data.replace("reassign_choose_priest_", ""))
+        context.user_data["reassign_priest"] = priest_id
+
+        session = SessionLocal()
+        try:
+            assigns = session.query(Assignment).filter(
+                Assignment.priest_telegram_id == priest_id
+            ).all()
+
+            bookings = [
+                session.query(Booking).get(a.booking_id)
+                for a in assigns
+                if session.query(Booking).get(a.booking_id) and
+                   session.query(Booking).get(a.booking_id).status == "assigned"
+            ]
+        finally:
+            session.close()
+
+        if not bookings:
+            await query.edit_message_text(
+                "<b>❌ Questo sacerdote non ha prenotazioni assegnate.</b>",
                 parse_mode="HTML"
             )
             return
 
-        priest_id = priest.telegram_id
+        buttons = [
+            [InlineKeyboardButton(f"Prenotazione #{b.id}", callback_data=f"reassign_choose_booking_{b.id}")]
+            for b in bookings
+        ]
+        buttons.append([InlineKeyboardButton("⬅️ Indietro", callback_data="reassign_back_to_priests")])
+        buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="reassign_cancel")])
 
-        if not is_priest(priest_id):
-            await update.message.reply_text(
-                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ L'utente indicato non è registrato come <b>sacerdote</b>.",
-                parse_mode="HTML"
-            )
-            return
+        await query.edit_message_text(
+            "<b>📋 Seleziona la prenotazione da riassegnare:</b>",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode="HTML"
+        )
+        return
 
+    # 2️⃣ Scelta prenotazione → esegui riassegnamento
+    if data.startswith("reassign_choose_booking_"):
+        booking_id = int(data.replace("reassign_choose_booking_", ""))
+        priest_id = context.user_data.get("reassign_priest")
+
+        session = SessionLocal()
+        try:
+            priest = session.query(Priest).filter(Priest.telegram_id == priest_id).first()
+            username = priest.username if priest else None
+        finally:
+            session.close()
+
+        await complete_reassign(update, context, booking_id, priest_id, username)
+
+        await query.edit_message_text(
+            f"🔄 Prenotazione #{booking_id} riassegnata a @{username}.",
+            parse_mode="HTML"
+        )
+
+async def complete_reassign(update, context, booking_id, priest_id, username):
+    session = SessionLocal()
+    try:
         booking = session.query(Booking).get(booking_id)
         if not booking:
-            await update.message.reply_text(
-                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ La <b>prenotazione</b> inserita risulta inesistente.",
+            await update.effective_message.reply_text(
+                "❌ Prenotazione inesistente.",
                 parse_mode="HTML"
             )
             return
 
-        # 🔎 Blocco se la prenotazione è completata o annullata
         if booking.status in ("completed", "cancelled"):
-            await update.message.reply_text(
-                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ La prenotazione #{booking.id} è <b>{booking.status.upper()}</b> e non può essere riassegnata.",
+            await update.effective_message.reply_text(
+                f"❌ La prenotazione #{booking.id} è {booking.status.upper()} e non può essere riassegnata.",
                 parse_mode="HTML"
             )
             return
 
         existing_assign = session.query(Assignment).filter_by(booking_id=booking.id).first()
         if not existing_assign:
-            await update.message.reply_text(
-                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ La prenotazione #{booking.id} non è ancora stata assegnata.\n➡️ Usa <code>/assegna</code>.",
+            await update.effective_message.reply_text(
+                f"⚠️ La prenotazione #{booking.id} non è ancora stata assegnata.",
                 parse_mode="HTML"
             )
             return
 
-        # Aggiorna l'assegnazione
+        # 🔄 RIASSEGNAZIONE (tua logica originale)
         existing_assign.priest_telegram_id = priest_id
         existing_assign.priest_username = username
         existing_assign.assigned_by = update.effective_user.id
         booking.updated_at = datetime.now(timezone.utc)
+
         session.add(existing_assign)
         session.add(booking)
 
@@ -739,36 +835,30 @@ async def riassegna(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ))
         session.commit()
 
-        await update.message.reply_text(
-            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🔄 Prenotazione #{booking.id} <b>riassegnata</b> a @{username}.",
-            parse_mode="HTML"
-        )
+        # Notifica sacerdote
         try:
             await context.bot.send_message(
                 priest_id,
-                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n🙏 Hey sacerdote! Ti è appena stata <b>riassegnata una prenotazione</b> (#{booking.id}).\n➡️ Utilizza <code>/mie_assegnazioni</code> per i dettagli.",
+                f"🙏 Ti è stata riassegnata la prenotazione #{booking.id}.",
                 parse_mode="HTML"
             )
-        except telegram.error.Forbidden:
-            await update.message.reply_text(
-                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Impossibile notificare @{username} in privato.\n➡️ Deve avviare il bot.",
-                parse_mode="HTML"
-            )
+        except:
+            pass
 
-        # 🔎 Cancella eventuale job precedente
+        # Cancella job precedente
         for job in context.job_queue.get_jobs_by_name(f"notify_{booking.id}"):
             job.schedule_removal()
 
-        # Pianifica nuovo job di 48 ore
+        # Nuovo job 48h
         context.job_queue.run_once(
             notify_uncompleted,
             when=48*3600,
             data={"booking_id": booking.id, "priest_id": priest_id, "username": username},
             name=f"notify_{booking.id}"
         )
+
     finally:
         session.close()
-
 
 async def notify_uncompleted(context: ContextTypes.DEFAULT_TYPE):
     job_data = context.job.data
@@ -1362,12 +1452,10 @@ async def lista_prenotazioni_callback(update: Update, context: ContextTypes.DEFA
             context.user_data["last_prompt_message_id"] = msg.message_id
 
         elif data == "close_panel":
-            new_text = (
-                "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n"
-                "ℹ️ Pannello prenotazioni chiuso."
-            )
-            await query.edit_message_text(new_text, parse_mode="HTML")
-
+            try:
+                await query.message.delete()
+            except:
+            pass
     finally:
         session.close()
 
@@ -1793,10 +1881,9 @@ def build_application():
         allow_reentry=True,
     )
     app.add_handler(conv_ingame)
-
     # --- Direzione ---
-    # 🔹 Rimosso il comando /assegna (ora gestito da pulsanti inline)
-    app.add_handler(CommandHandler("riassegna", riassegna))
+    app.add_handler(CommandHandler("riassegna", riassegna))  # nuovo flusso interattivo
+    app.add_handler(CallbackQueryHandler(reassign_callback, pattern=r"^reassign_"))  # <-- AGGIUNTO
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern="^(confirm_remove_|cancel_remove)"))
     app.add_handler(CommandHandler("get_topic_id", get_topic_id))
@@ -1806,17 +1893,14 @@ def build_application():
     # 🔹 Pannello avanzato prenotazioni
     app.add_handler(CallbackQueryHandler(
         lista_prenotazioni_callback,
-        pattern="^(filter_|priest_|priestfilter_|bookings_page_|back_main|search_fedele|search_id|close_panel)"
-    ))
+        pattern="^(filter_|priest_|bookings_page_|back_main|search_fedele|search_id|close_panel)"
+    ))  # <-- RIMOSSO priestfilter_
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lista_prenotazioni_search))
     # --- Sacerdoti ---
     app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
-    # 🔹 Paginazione assegnazioni
     app.add_handler(CallbackQueryHandler(mie_assegnazioni_page, pattern=r"^assign_page_\d+$"))
-    # 🔹 Completamento prenotazioni (inline)
     app.add_handler(CallbackQueryHandler(completa_menu, pattern=r"^completa_menu$"))
     app.add_handler(CallbackQueryHandler(completa_booking, pattern=r"^completa_\d+$"))
     app.add_handler(CallbackQueryHandler(back_menu, pattern=r"^back_menu$"))
 
     return app
-
