@@ -557,7 +557,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"• 📝 Motivo: <b>{safe_notes}</b>\n\n"
                 f"📌 Registrato dal segretario: <b>{secretary_tag_safe}</b>",
                 parse_mode="HTML",
-                message_thread_id=DIVORCE_TOPIC_ID
+                message_thread_id=12973
             )
 
         else:
