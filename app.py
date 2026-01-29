@@ -56,6 +56,7 @@ SACRAMENTS = [
     "confessione",
     "unzione",
     "matrimonio",
+    "divorzio",
 ]
 
 STATUS = ["pending", "assigned", "in_progress", "completed", "canceled"]
@@ -251,7 +252,7 @@ async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     msg = await update.message.reply_text(
-        "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📝 Per iniziare la procedura di registrazione, inserisci la <b>@ del fedele</b> che ha prenotato:\n\nPrima di proseguire, assicurati che il contatto inserito sia corretto.",
+        "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📝 Per iniziare la procedura di registrazione, inserisci la <b>@ del fedele</b> che ha prenotato:\n\nPrima di proseguire, assicurati che il contatto inserito sia corretto.\nSe si tratta di un divorzio inserisci un puntino.",
         parse_mode="HTML"
     )
     context.user_data["last_prompt_id"] = msg.message_id
@@ -302,9 +303,8 @@ async def ig_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = update.message.text.lower().replace(" ", "_")
-    kb = ReplyKeyboardMarkup([[KeyboardButton(s.replace("_"," "))] for s in SACRAMENTS],
-                             one_time_keyboard=False, resize_keyboard=True)
-    # elimina messaggi
+
+    # elimina messaggi precedenti
     await update.message.delete()
     if "last_prompt_id" in context.user_data:
         try:
@@ -312,8 +312,14 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+    # --- Caso "fine" ---
     if s == "fine":
         if not context.user_data["sacraments"]:
+            # ricostruisci tastiera aggiornata
+            remaining = [s for s in SACRAMENTS if s not in context.user_data["sacraments"]]
+            kb = ReplyKeyboardMarkup([[KeyboardButton(x.replace("_"," "))] for x in remaining],
+                                     one_time_keyboard=False, resize_keyboard=True)
+
             msg = await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Attenzione, non hai selezionato nessun <b>sacramento</b>.\n\n➡️ Riprova:",
@@ -322,15 +328,22 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             context.user_data["last_prompt_id"] = msg.message_id
             return IG_SACRAMENT
+
         msg = await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📋 Siamo arrivati quasi alla fine.\n\n➡️ Inserisci delle <b>note aggiuntive</b> (se non ci sono scrivi 'no'):",
+            text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📋 Siamo arrivati quasi alla fine.\n\n➡️ Inserisci delle <b>note aggiuntive</b> (se non ci sono scrivi 'no')\nSe si tratta di un divorzio scrivi il motivo:",
             parse_mode="HTML"
         )
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_NOTES
 
+    # --- Sacramento non valido ---
     if s not in SACRAMENTS:
+        # ricostruisci tastiera aggiornata
+        remaining = [x for x in SACRAMENTS if x not in context.user_data["sacraments"]]
+        kb = ReplyKeyboardMarkup([[KeyboardButton(x.replace("_"," "))] for x in remaining],
+                                 one_time_keyboard=False, resize_keyboard=True)
+
         msg = await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Il sacramento inserito non è <b>valido</b>.\n\n➡️ Riprova:",
@@ -340,10 +353,68 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_SACRAMENT
 
+    # --- LOGICA SPECIALE PER DIVORZIO E MATRIMONIO ---
+    if s in ("divorzio", "matrimonio"):
+
+        # Caso 1: È il PRIMO sacramento → deve essere l'unico
+        if not context.user_data["sacraments"]:
+            context.user_data["sacraments"] = [s]
+
+            nome = "Divorzio" if s == "divorzio" else "Matrimonio"
+
+            msg = await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=(
+                    f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📌 Hai selezionato <b>{nome}</b>.\n"
+                    f"➡️ Il {nome.lower()} non può essere combinato con altri sacramenti.\n"
+                    "Procediamo direttamente alle <b>note</b>:"
+                ),
+                parse_mode="HTML"
+            )
+            context.user_data["last_prompt_id"] = msg.message_id
+            return IG_NOTES
+
+        # Caso 2: Ci sono già altri sacramenti → NON aggiungere
+        else:
+            # ricostruisci tastiera senza matrimonio/divorzio e senza sacramenti già scelti
+            remaining = [
+                x for x in SACRAMENTS
+                if x not in context.user_data["sacraments"]
+                and x not in ("divorzio", "matrimonio")
+            ]
+            kb = ReplyKeyboardMarkup([[KeyboardButton(x.replace("_"," "))] for x in remaining],
+                                     one_time_keyboard=False, resize_keyboard=True)
+
+            nome = "divorzio" if s == "divorzio" else "matrimonio"
+            msg = await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=(
+                    f"<b>⚠️ Il {nome} può essere registrato solo come sacramento unico.</b>\n"
+                    "➡️ Non è stato aggiunto.\n\n"
+                    "Seleziona un altro sacramento oppure scrivi <b>'fine'</b>:"
+                ),
+                reply_markup=kb,
+                parse_mode="HTML"
+            )
+            context.user_data["last_prompt_id"] = msg.message_id
+            return IG_SACRAMENT
+
+    # --- Aggiunta normale di un sacramento ---
     context.user_data["sacraments"].append(s)
+
+    remaining = [
+        x for x in SACRAMENTS
+        if x not in context.user_data["sacraments"]
+        and x not in ("divorzio", "matrimonio")
+    ]
+
+    kb = ReplyKeyboardMarkup([[KeyboardButton(x.replace("_"," "))] for x in remaining],
+                             one_time_keyboard=False, resize_keyboard=True)
+
     msg = await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ Il sacramento è stato <b>aggiunto con successo</b>!\n\n➡️ Selezionane un altro oppure scrivi <b>'fine'</b>:",
+        text="<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ Il sacramento è stato <b>aggiunto con successo</b>!\n\n"
+             "➡️ Selezionane un altro oppure scrivi <b>'fine'</b>:",
         reply_markup=kb,
         parse_mode="HTML"
     )
@@ -393,6 +464,7 @@ async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     if query.data == "cancel":
         await query.edit_message_text(
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ La prenotazione è stata <i>annullata con successo</i>!\n\n"
@@ -400,11 +472,13 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
         return ConversationHandler.END
+
     if query.data != "confirm":
         return
 
     user = update.effective_user
     user_id = user.id
+
     if not is_secretary(user_id):
         await query.edit_message_text(
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il <i>permesso</i> per eseguire questa azione.",
@@ -415,6 +489,10 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = SessionLocal()
     try:
         sacrament_display_raw = ", ".join(context.user_data.get("sacraments", []))
+        is_divorce = sacrament_display_raw == "divorzio"
+
+        # 🔹 Lo status cambia SOLO per le prenotazioni normali
+        booking_status = "registered" if is_divorce else "pending"
 
         booking = Booking(
             source="ingame",
@@ -422,7 +500,7 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             nickname_mc=context.user_data["nickname_mc"],
             sacrament=sacrament_display_raw,
             notes=context.user_data["notes"],
-            status="pending",
+            status=booking_status,
             secretary_username=user.username or f"ID:{user.id}"
         )
         session.add(booking)
@@ -443,40 +521,72 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         secretary_tag = f"@{user.username}" if user.username else f"ID:{user.id}"
         secretary_tag_safe = html.escape(secretary_tag)
 
-        await query.edit_message_text(
-            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n✅ La tua prenotazione è stata <i>registrata con successo</i>! (ID #{booking.id})\n\n"
-            "📋 Resoconto delle informazioni inserite:\n\n"
-            f"• 👤 Contatto Telegram: <b>{rp_name}</b>\n"
-            f"• 🎮 Nick: <b>{nickname_mc}</b>\n"
-            f"• ✝️ Sacramenti: <b>{sacrament_display}</b>\n"
-            f"• 📝 Note: <b>{safe_notes}</b>",
-            parse_mode="HTML"
-        )
+        # 🔹 MESSAGGIO DI CONFERMA PER IL SEGRETARIO
+        if is_divorce:
+            await query.edit_message_text(
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n"
+                f"📑 Il <b>divorzio</b> è stato <i>registrato correttamente</i>! (ID #{booking.id})\n\n"
+                "📋 Resoconto delle informazioni inserite:\n\n"
+                f"• 👤 Contatto Telegram: <b>{rp_name}</b>\n"
+                f"• 🎮 Nick: <b>{nickname_mc}</b>\n"
+                f"• 💔 Divorzio registrato\n"
+                f"• 📝 Motivo: <b>{safe_notes}</b>",
+                parse_mode="HTML"
+            )
+        else:
+            await query.edit_message_text(
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n"
+                f"✅ La tua prenotazione è stata <i>registrata con successo</i>! (ID #{booking.id})\n\n"
+                "📋 Resoconto delle informazioni inserite:\n\n"
+                f"• 👤 Contatto Telegram: <b>{rp_name}</b>\n"
+                f"• 🎮 Nick: <b>{nickname_mc}</b>\n"
+                f"• ✝️ Sacramenti: <b>{sacrament_display}</b>\n"
+                f"• 📝 Note: <b>{safe_notes}</b>",
+                parse_mode="HTML"
+            )
 
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("➕ Assegna", callback_data=f"assign_{booking.id}")]
-        ])
+        # 🔹 MESSAGGIO ALLA DIREZIONE
+        if is_divorce:
+            # 🔥 DIVORZIO → nessun tasto assegna, topic diverso
+            await context.bot.send_message(
+                DIRECTORS_GROUP_ID,
+                f"<b>📑 NUOVA REGISTRAZIONE DI DIVORZIO</b> (ID #{booking.id})\n\n"
+                f"• 👤 Contatto Telegram: <b>{rp_name}</b>\n"
+                f"• 🎮 Nick: <b>{nickname_mc}</b>\n"
+                f"• 💔 Divorzio registrato\n"
+                f"• 📝 Motivo: <b>{safe_notes}</b>\n\n"
+                f"📌 Registrato dal segretario: <b>{secretary_tag_safe}</b>",
+                parse_mode="HTML",
+                message_thread_id=DIVORCE_TOPIC_ID
+            )
 
-        # 🔹 Salviamo l'ID del messaggio originale della prenotazione in mappa globale
-        msg = await context.bot.send_message(
-            DIRECTORS_GROUP_ID,
-            f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📢 È presente una nuova <b>prenotazione</b>! (ID #{booking.id})\n\n"
-            f"• 👤 Contatto Telegram: <b>{rp_name}</b>\n"
-            f"• 🎮 Nick: <b>{nickname_mc}</b>\n"
-            f"• ✝️ Sacramenti: <b>{sacrament_display}</b>\n"
-            f"• 📝 Note: <b>{safe_notes}</b>\n\n"
-            f"📌 Prenotazione registrata dal segretario: <b>{secretary_tag_safe}</b>\n\n"
-            "⚠️ Ricorda di verificare i campi inseriti e di assegnarla il prima possibile a un sacerdote.",
-            reply_markup=kb,
-            parse_mode="HTML",
-            message_thread_id=DIRECTORS_TOPIC_ID
-        )
+        else:
+            # 🔥 PRENOTAZIONE NORMALE → tasto assegna + topic normale
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ Assegna", callback_data=f"assign_{booking.id}")]
+            ])
 
-        booking_msg_map[booking.id] = msg.message_id   # 🔹 salva globalmente
+            msg = await context.bot.send_message(
+                DIRECTORS_GROUP_ID,
+                f"<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📢 È presente una nuova <b>prenotazione</b>! (ID #{booking.id})\n\n"
+                f"• 👤 Contatto Telegram: <b>{rp_name}</b>\n"
+                f"• 🎮 Nick: <b>{nickname_mc}</b>\n"
+                f"• ✝️ Sacramenti: <b>{sacrament_display}</b>\n"
+                f"• 📝 Note: <b>{safe_notes}</b>\n\n"
+                f"📌 Prenotazione registrata dal segretario: <b>{secretary_tag_safe}</b>\n\n"
+                "⚠️ Ricorda di verificare i campi inseriti e di assegnarla il prima possibile a un sacerdote.",
+                reply_markup=kb,
+                parse_mode="HTML",
+                message_thread_id=DIRECTORS_TOPIC_ID
+            )
+
+            booking_msg_map[booking.id] = msg.message_id
 
         return ConversationHandler.END
+
     finally:
         session.close()
+
 
 # ---- DIREZIONE: CALLBACK "Assegna" ----
 async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
