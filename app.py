@@ -699,37 +699,22 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 🔙 Torna alla lista prenotazioni del sacerdote
+    # 🔙 Torna alla lista prenotazioni del sacerdote (con paginazione)
     if data == "reassign_back_to_bookings":
-        priest_id = context.user_data.get("reassign_priest")
+        context.user_data["reassign_page"] = 1
+        await show_reassign_bookings_page(query, context)
+        return
 
-        session = SessionLocal()
-        try:
-            assigns = session.query(Assignment).filter(
-                Assignment.priest_telegram_id == priest_id
-            ).all()
+    # 🔄 Paginazione: pagina precedente
+    if data == "reassign_page_prev":
+        context.user_data["reassign_page"] -= 1
+        await show_reassign_bookings_page(query, context)
+        return
 
-            bookings = [
-                session.query(Booking).get(a.booking_id)
-                for a in assigns
-                if session.query(Booking).get(a.booking_id) and
-                   session.query(Booking).get(a.booking_id).status == "assigned"
-            ]
-        finally:
-            session.close()
-
-        buttons = [
-            [InlineKeyboardButton(f"Prenotazione #{b.id}", callback_data=f"reassign_choose_booking_{b.id}")]
-            for b in bookings
-        ]
-        buttons.append([InlineKeyboardButton("⬅️ Indietro", callback_data="reassign_back_to_priests")])
-        buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="reassign_cancel")])
-
-        await query.edit_message_text(
-            "<b>📋 Seleziona la prenotazione da riassegnare:</b>",
-            reply_markup=InlineKeyboardMarkup(buttons),
-            parse_mode="HTML"
-        )
+    # 🔄 Paginazione: pagina successiva
+    if data == "reassign_page_next":
+        context.user_data["reassign_page"] += 1
+        await show_reassign_bookings_page(query, context)
         return
 
     # 1️⃣ Scelta sacerdote
@@ -746,8 +731,8 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             bookings = [
                 session.query(Booking).get(a.booking_id)
                 for a in assigns
-                if session.query(Booking).get(a.booking_id) and
-                   session.query(Booking).get(a.booking_id).status == "assigned"
+                if session.query(Booking).get(a.booking_id)
+                and session.query(Booking).get(a.booking_id).status == "assigned"
             ]
         finally:
             session.close()
@@ -759,21 +744,12 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        buttons = [
-            [InlineKeyboardButton(f"Prenotazione #{b.id}", callback_data=f"reassign_choose_booking_{b.id}")]
-            for b in bookings
-        ]
-        buttons.append([InlineKeyboardButton("⬅️ Indietro", callback_data="reassign_back_to_priests")])
-        buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="reassign_cancel")])
+        context.user_data["reassign_bookings"] = [b.id for b in bookings]
+        context.user_data["reassign_page"] = 1
 
-        await query.edit_message_text(
-            "<b>📋 Seleziona la prenotazione da riassegnare:</b>",
-            reply_markup=InlineKeyboardMarkup(buttons),
-            parse_mode="HTML"
-        )
+        await show_reassign_bookings_page(query, context)
         return
 
-    # 2️⃣ Scelta prenotazione → esegui riassegnamento
     if data.startswith("reassign_choose_booking_"):
         booking_id = int(data.replace("reassign_choose_booking_", ""))
         priest_id = context.user_data.get("reassign_priest")
@@ -791,6 +767,39 @@ async def reassign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔄 Prenotazione #{booking_id} riassegnata a @{username}.",
             parse_mode="HTML"
         )
+
+async def show_reassign_bookings_page(query, context):
+    bookings = context.user_data.get("reassign_bookings", [])
+    page = context.user_data.get("reassign_page", 1)
+
+    per_page = 5
+    total_pages = (len(bookings) + per_page - 1) // per_page
+
+    start = (page - 1) * per_page
+    end = start + per_page
+    page_items = bookings[start:end]
+
+    buttons = [
+        [InlineKeyboardButton(f"Prenotazione #{bid}", callback_data=f"reassign_choose_booking_{bid}")]
+        for bid in page_items
+    ]
+
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton("⬅️", callback_data="reassign_page_prev"))
+    if page < total_pages:
+        nav.append(InlineKeyboardButton("➡️", callback_data="reassign_page_next"))
+    if nav:
+        buttons.append(nav)
+
+    buttons.append([InlineKeyboardButton("⬅️ Indietro", callback_data="reassign_back_to_priests")])
+    buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="reassign_cancel")])
+
+    await query.edit_message_text(
+        "<b>📋 Seleziona la prenotazione da riassegnare:</b>",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="HTML"
+    )
 
 async def complete_reassign(update, context, booking_id, priest_id, username):
     session = SessionLocal()
@@ -1858,15 +1867,12 @@ async def get_topic_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def build_application():
     # Inizializza DB
     init_db()
-
     # Costruisci l'applicazione Telegram
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_error_handler(on_error)
-
     # --- START & Ruoli ---
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(choose_role, pattern=r"^role_(sacerdote|segretario|direzione)$"))
-
     # --- Prenotazioni ingame (Segretari) ---
     conv_ingame = ConversationHandler(
         entry_points=[CommandHandler("prenota_ingame", prenota_ingame)],
@@ -1882,20 +1888,24 @@ def build_application():
     )
     app.add_handler(conv_ingame)
     # --- Direzione ---
-    app.add_handler(CommandHandler("riassegna", riassegna))  # nuovo flusso interattivo
-    app.add_handler(CallbackQueryHandler(reassign_callback, pattern=r"^reassign_"))  # <-- AGGIUNTO
+    app.add_handler(CommandHandler("riassegna", riassegna))  
+    app.add_handler(CallbackQueryHandler(reassign_callback, pattern=r"^reassign_"))
+
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
-    app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern="^(confirm_remove_|cancel_remove)"))
+    app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern=r"^(confirm_remove_|cancel_remove)"))
     app.add_handler(CommandHandler("get_topic_id", get_topic_id))
+
     # 🔹 Assegnazioni tramite pulsanti
     app.add_handler(CallbackQueryHandler(assign_callback, pattern=r"^assign_\d+$"))
     app.add_handler(CallbackQueryHandler(do_assign_callback, pattern=r"^do_assign_\d+_\d+$"))
+
     # 🔹 Pannello avanzato prenotazioni
     app.add_handler(CallbackQueryHandler(
         lista_prenotazioni_callback,
-        pattern="^(filter_|priest_|bookings_page_|back_main|search_fedele|search_id|close_panel)"
-    ))  # <-- RIMOSSO priestfilter_
+        pattern=r"^(filter_|priest_|bookings_page_|back_main|search_fedele|search_id|close_panel)"
+    ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lista_prenotazioni_search))
+
     # --- Sacerdoti ---
     app.add_handler(CommandHandler("mie_assegnazioni", mie_assegnazioni))
     app.add_handler(CallbackQueryHandler(mie_assegnazioni_page, pattern=r"^assign_page_\d+$"))
