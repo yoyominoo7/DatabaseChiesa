@@ -245,6 +245,17 @@ def confirm_keyboard():
     "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non risulti essere un <b>segretario</b>, perciò non puoi eseguire il comando.\n\nSe pensi sia un errore contatta 👉 @LavatiScimmiaInfuocata."
 )
 async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    if context.user_data.get("ingame_active"):
+        await update.message.reply_text(
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Hai già una <b>procedura di prenotazione</b> in corso.\n"
+            "➡️ Completa o annulla quella prima di avviarne un'altra.",
+            parse_mode="HTML"
+        )
+        return ConversationHandler.END
+
+    context.user_data["ingame_active"] = True
+
     if update.effective_chat.type != "private":
         await update.message.reply_text(
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Questo comando può essere usato <b>solo in privato</b> con il bot.",
@@ -252,12 +263,13 @@ async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     msg = await update.message.reply_text(
-        "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📝 Per iniziare la procedura di registrazione, inserisci la <b>@ del fedele</b> che ha prenotato:\n\nPrima di proseguire, assicurati che il contatto inserito sia corretto.\nSe si tratta di un divorzio inserisci un puntino.",
+        "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📝 Per iniziare la procedura di registrazione, inserisci la <b>@ del fedele</b> che ha prenotato:\n\n"
+        "Prima di proseguire, assicurati che il contatto inserito sia corretto. Se si tratta di un divorzio inserisci un puntino.\n"
         parse_mode="HTML"
     )
+
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_RP_NAME
-
 
 async def ig_rp_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["rp_name"] = update.message.text.strip()
@@ -304,7 +316,6 @@ async def ig_nick(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = update.message.text.lower().replace(" ", "_")
 
-    # elimina messaggi precedenti
     await update.message.delete()
     if "last_prompt_id" in context.user_data:
         try:
@@ -312,10 +323,9 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # --- Caso "fine" ---
+    # --- FINE ---
     if s == "fine":
         if not context.user_data["sacraments"]:
-            # ricostruisci tastiera aggiornata
             remaining = [s for s in SACRAMENTS if s not in context.user_data["sacraments"]]
             kb = ReplyKeyboardMarkup([[KeyboardButton(x.replace("_"," "))] for x in remaining],
                                      one_time_keyboard=False, resize_keyboard=True)
@@ -337,9 +347,8 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_NOTES
 
-    # --- Sacramento non valido ---
+    # --- SACRAMENTO NON VALIDO ---
     if s not in SACRAMENTS:
-        # ricostruisci tastiera aggiornata
         remaining = [x for x in SACRAMENTS if x not in context.user_data["sacraments"]]
         kb = ReplyKeyboardMarkup([[KeyboardButton(x.replace("_"," "))] for x in remaining],
                                  one_time_keyboard=False, resize_keyboard=True)
@@ -353,10 +362,29 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["last_prompt_id"] = msg.message_id
         return IG_SACRAMENT
 
-    # --- LOGICA SPECIALE PER DIVORZIO E MATRIMONIO ---
+    # 🔒 BLOCCO SACRAMENTI DUPLICATI (anche se scritti a mano)
+    if s in context.user_data["sacraments"]:
+        remaining = [
+            x for x in SACRAMENTS
+            if x not in context.user_data["sacraments"]
+            and x not in ("divorzio", "matrimonio")
+        ]
+        kb = ReplyKeyboardMarkup([[KeyboardButton(x.replace("_"," "))] for x in remaining],
+                                 one_time_keyboard=False, resize_keyboard=True)
+
+        msg = await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="<b>⚠️ Questo sacramento è già stato selezionato.</b>\n\n"
+                 "➡️ Scegline un altro oppure scrivi <b>'fine'</b>:",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        context.user_data["last_prompt_id"] = msg.message_id
+        return IG_SACRAMENT
+
+    # --- LOGICA MATRIMONIO / DIVORZIO ---
     if s in ("divorzio", "matrimonio"):
 
-        # Caso 1: È il PRIMO sacramento → deve essere l'unico
         if not context.user_data["sacraments"]:
             context.user_data["sacraments"] = [s]
 
@@ -374,9 +402,7 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["last_prompt_id"] = msg.message_id
             return IG_NOTES
 
-        # Caso 2: Ci sono già altri sacramenti → NON aggiungere
         else:
-            # ricostruisci tastiera senza matrimonio/divorzio e senza sacramenti già scelti
             remaining = [
                 x for x in SACRAMENTS
                 if x not in context.user_data["sacraments"]
@@ -399,7 +425,7 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["last_prompt_id"] = msg.message_id
             return IG_SACRAMENT
 
-    # --- Aggiunta normale di un sacramento ---
+    # --- AGGIUNTA NORMALE ---
     context.user_data["sacraments"].append(s)
 
     remaining = [
@@ -420,6 +446,7 @@ async def ig_sacrament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     context.user_data["last_prompt_id"] = msg.message_id
     return IG_SACRAMENT
+
 
 
 async def ig_notes(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -465,12 +492,14 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
+    # 🔹 CANCELLAZIONE PROCEDURA
     if query.data == "cancel":
         await query.edit_message_text(
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ La prenotazione è stata <i>annullata con successo</i>!\n\n"
             "➡️ Se vuoi effettuarla di nuovo digita <code>/prenota_ingame</code>",
             parse_mode="HTML"
         )
+        context.user_data.pop("ingame_active", None)   # 🔥 sblocca procedura
         return ConversationHandler.END
 
     if query.data != "confirm":
@@ -479,11 +508,13 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
 
+    # 🔹 PERMESSI
     if not is_secretary(user_id):
         await query.edit_message_text(
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n❌ Non hai il <i>permesso</i> per eseguire questa azione.",
             parse_mode="HTML"
         )
+        context.user_data.pop("ingame_active", None)   # 🔥 sblocca procedura
         return ConversationHandler.END
 
     session = SessionLocal()
@@ -547,12 +578,15 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 🔹 MESSAGGIO ALLA DIREZIONE
         if is_divorce:
             # 🔥 DIVORZIO → nessun tasto assegna, topic diverso
+            timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+
             await context.bot.send_message(
                 DIRECTORS_GROUP_ID,
                 f"<b>📑 NUOVA REGISTRAZIONE DI DIVORZIO</b> (ID #{booking.id})\n\n"
                 f"• 🎮 Nick: <b>{nickname_mc}</b>\n"
                 f"• 💔 Divorzio registrato\n"
-                f"• 📝 Motivo: <b>{safe_notes}</b>\n\n"
+                f"• 📝 Motivo: <b>{safe_notes}</b>\n"
+                f"• 🕒 Registrato il: <b>{timestamp}</b>\n\n"
                 f"📌 Registrato dal segretario: <b>{secretary_tag_safe}</b>",
                 parse_mode="HTML",
                 message_thread_id=12973
@@ -580,6 +614,9 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             booking_msg_map[booking.id] = msg.message_id
 
+        # 🔥 Sblocca la procedura /prenota_ingame
+        context.user_data.pop("ingame_active", None)
+
         return ConversationHandler.END
 
     finally:
@@ -590,20 +627,44 @@ async def ig_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    data = query.data
+
+    # 🔹 Annulla assegnazione: elimina il messaggio e pulisce lo stato
+    if data == "cancel_assign":
+        msg_id = context.user_data.get("assign_msg_id")
+        if msg_id:
+            try:
+                await context.bot.delete_message(
+                    chat_id=update.effective_chat.id,
+                    message_id=msg_id
+                )
+            except Exception:
+                pass
+        context.user_data.pop("assign_msg_id", None)
+        context.user_data.pop("assign_booking_id", None)
+        await query.answer("❌ Assegnazione annullata.", show_alert=False)
+        return
+
+    # Da qui in giù gestiamo solo i callback "assign_<id>"
+    if not data.startswith("assign_"):
+        return
 
     if not is_director(update.effective_user.id):
         await query.answer("❌ Non hai il permesso.", show_alert=True)
         return
 
-    booking_id = int(query.data.replace("assign_", ""))
+    booking_id = int(data.replace("assign_", ""))
 
+    # 🔒 Se questa prenotazione è già in fase di assegnazione, blocca l'azione
+    in_progress_booking_id = context.user_data.get("assign_booking_id")
+    if in_progress_booking_id == booking_id:
+        return
     session = SessionLocal()
     try:
         booking = session.query(Booking).get(booking_id)
         if not booking or booking.status != "pending":
             await query.answer("⚠️ Prenotazione non valida o già assegnata.", show_alert=True)
             return
-
         # 🔹 Calcolo settimana corrente (lunedì ➝ domenica)
         now = datetime.now(timezone.utc)
         start_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -643,19 +704,17 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons.append([InlineKeyboardButton("❌ Annulla", callback_data="cancel_assign")])
 
         # 🔹 Testo suggerimento sacerdoti
-        priest_lines = []
-        for p in top3:
-            priest_lines.append(
-                f"- @{p.username}: {counts.get(p.telegram_id, 0)} assegnazioni"
-            )
+        priest_lines = [
+            f"- @{p.username}: {counts.get(p.telegram_id, 0)} assegnazioni"
+            for p in top3
+        ]
         priest_text = "\n".join(priest_lines) if priest_lines else "ℹ️ Nessun sacerdote disponibile."
 
         # 🔹 Testo riepilogo segretari (esclusi direttori)
-        secretary_lines = []
-        for s in secretaries:
-            secretary_lines.append(
-                f"- @{s.username}: {counts.get(s.telegram_id, 0)} assegnazioni"
-            )
+        secretary_lines = [
+            f"- @{s.username}: {counts.get(s.telegram_id, 0)} assegnazioni"
+            for s in secretaries
+        ]
         secretary_text = "\n".join(secretary_lines) if secretary_lines else "ℹ️ Nessun segretario registrato."
 
         # 🔹 Messaggio finale
@@ -673,6 +732,7 @@ async def assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["assign_booking_id"] = booking.id
     finally:
         session.close()
+
 
 # ---- DIREZIONE: CALLBACK scelta sacerdote ----
 async def do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1858,7 +1918,7 @@ async def weekly_report(app):
                     if sac.lower() == "matrimonio":
                         if "premium" in notes:
                             sac_key = "matrimonio premium"
-                        elif "base" in notes:
+                        elif "base" in notes or "default" in notes:
                             sac_key = "matrimonio base"
 
                     priest_sacraments[pid][sac_key] = priest_sacraments[pid].get(sac_key, 0) + 1
@@ -1879,7 +1939,7 @@ async def weekly_report(app):
                 if sac.lower() == "matrimonio":
                     if "premium" in notes:
                         sac_key = "matrimonio premium"
-                    elif "base" in notes:
+                    elif "base" in notes or "default" in notes:
                         sac_key = "matrimonio base"
 
                 per_sacrament[sac_key] = per_sacrament.get(sac_key, 0) + 1
