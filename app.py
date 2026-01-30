@@ -249,8 +249,6 @@ async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("ingame_active"):
         try:
             await update.message.delete()
-        except Exception:
-            pass
 
     context.user_data["ingame_active"] = True
 
