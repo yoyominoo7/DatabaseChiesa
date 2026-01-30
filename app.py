@@ -247,12 +247,10 @@ def confirm_keyboard():
 async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if context.user_data.get("ingame_active"):
-        await update.message.reply_text(
-            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Hai già una <b>procedura di prenotazione</b> in corso.\n"
-            "➡️ Completa o annulla quella prima di avviarne un'altra.",
-            parse_mode="HTML"
-        )
-        return ConversationHandler.END
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
 
     context.user_data["ingame_active"] = True
 
