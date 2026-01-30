@@ -247,8 +247,7 @@ def confirm_keyboard():
 async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if context.user_data.get("ingame_active"):
-        try:
-            await update.message.delete()
+        await update.message.delete()
 
     context.user_data["ingame_active"] = True
 
