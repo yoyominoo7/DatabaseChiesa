@@ -264,7 +264,7 @@ async def prenota_ingame(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     msg = await update.message.reply_text(
         "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n📝 Per iniziare la procedura di registrazione, inserisci la <b>@ del fedele</b> che ha prenotato:\n\n"
-        "Prima di proseguire, assicurati che il contatto inserito sia corretto. Se si tratta di un divorzio inserisci un puntino.\n"
+        "Prima di proseguire, assicurati che il contatto inserito sia corretto. Se si tratta di un divorzio inserisci un puntino.\n",
         parse_mode="HTML"
     )
 
