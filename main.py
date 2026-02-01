@@ -16,8 +16,8 @@ ROME_TZ = pytz.timezone("Europe/Rome")
 def schedule_jobs(application):
     application.job_queue.run_daily(
         weekly_report,
-        time=time(hour=10, minute=0, tzinfo=ROME_TZ),  # 10:00 ora italiana
-        days=(0,),  # 0 = lunedì
+        time=time(hour=0, minute=0, tzinfo=ROME_TZ),  # 10:00 ora italiana
+        days=(1,),  # 0 = lunedì
         name="weekly_report_job"
     )
 
