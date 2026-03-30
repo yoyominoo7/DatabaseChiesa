@@ -2002,9 +2002,9 @@ async def weekly_report(app):
 async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = SessionLocal()
     try:
-        # 📌 Date fisse richieste: 23/03 → 29/03
-        start = datetime(2025, 3, 23, 0, 0, 0, tzinfo=timezone.utc)
-        end   = datetime(2025, 3, 29, 23, 59, 59, tzinfo=timezone.utc)
+        # 📌 Date richieste: 23/03 → 29/03 in ora italiana
+        start = ROME_TZ.localize(datetime(2025, 3, 23, 0, 0, 0))
+        end   = ROME_TZ.localize(datetime(2025, 3, 29, 23, 59, 59))
 
         # Prenotazioni completate nella settimana
         completed = session.query(Booking).filter(
@@ -2115,7 +2115,6 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
         lines.append("")
         lines.append(f"📌 Prenotazioni ancora <b>aperte</b>: {open_items}")
 
-        # Invio al segretario che ha richiesto il comando
         await update.message.reply_text(
             "\n".join(lines),
             parse_mode="HTML"
@@ -2123,6 +2122,7 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
 
     finally:
         session.close()
+
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.exception("Unhandled error", exc_info=context.error)
