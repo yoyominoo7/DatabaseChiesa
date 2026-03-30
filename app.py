@@ -2002,7 +2002,7 @@ async def weekly_report(app):
 async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = SessionLocal()
     try:
-        # 📌 Date richieste: 23/03 → 29/03 in ora italiana
+        # 📌 Date fisse richieste: 23/03 → 29/03
         start = datetime(2026, 3, 23, 0, 0, 0, tzinfo=timezone.utc)
         end   = datetime(2026, 3, 29, 23, 59, 59, tzinfo=timezone.utc)
 
@@ -2039,7 +2039,7 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
                 for sac in sac_list:
                     sac_key = sac
 
-                    # 🔹 MATRIMONIO BASE / PREMIUM
+                    # MATRIMONIO BASE / PREMIUM
                     if sac.lower() == "matrimonio":
                         if "premium" in notes:
                             sac_key = "matrimonio premium"
@@ -2060,7 +2060,6 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
             for sac in sac_list:
                 sac_key = sac
 
-                # 🔹 MATRIMONIO BASE / PREMIUM
                 if sac.lower() == "matrimonio":
                     if "premium" in notes:
                         sac_key = "matrimonio premium"
@@ -2073,10 +2072,11 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
             Booking.status.in_(["pending", "assigned", "in_progress"])
         ).count()
 
+        # COSTRUZIONE MESSAGGIO
         lines = [
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️",
             "",
-            "📊 <b>Report settimanale</b>",
+            "📊 <b>Report settimanale (manuale)</b>",
             f"🗓 Periodo: <b>{start.date()} ➝ {end.date()}</b>",
             f"✝️ Totale sacramenti completati: <b>{total}</b>",
             "",
@@ -2095,16 +2095,13 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
                 if pid in priest_sacraments:
                     for sac, count in priest_sacraments[pid].items():
                         sac_name = sac.replace("_", " ")
-                        if count > 1:
-                            detail.append(f"{sac_name} ({count} volte)")
-                        else:
-                            detail.append(sac_name)
+                        detail.append(f"{sac_name} ({count})" if count > 1 else sac_name)
 
                 detail_str = ", ".join(detail) if detail else "Nessun sacramento registrato"
 
                 lines.append(f"- 🙏 Sacerdote <b>{priest_tag}</b>: {num} ➝ {detail_str}")
         else:
-            lines.append("ℹ️ Nessun sacramento completato dai sacerdoti questa settimana.")
+            lines.append("ℹ️ Nessun sacramento completato dai sacerdoti in questo periodo.")
 
         lines.append("")
         lines.append("✝️ <b>Dettaglio per sacramento (totale):</b>")
@@ -2113,21 +2110,20 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
             for sac, num in per_sacrament.items():
                 lines.append(f"- {sac.replace('_',' ')}: {num}")
         else:
-            lines.append("ℹ️ Nessun sacramento completato questa settimana.")
+            lines.append("ℹ️ Nessun sacramento completato in questo periodo.")
 
         lines.append("")
         lines.append(f"📌 Prenotazioni ancora <b>aperte</b>: {open_items}")
 
-        # Invio al gruppo direzione nel topic configurato
-        await app.bot.send_message(
-            DIRECTORS_GROUP_ID,
+        # Invio al segretario che ha richiesto il comando
+        await update.message.reply_text(
             "\n".join(lines),
-            parse_mode="HTML",
-            message_thread_id=12874
+            parse_mode="HTML"
         )
 
     finally:
         session.close()
+
 
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2150,25 +2146,6 @@ async def get_topic_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Devi usare questo comando <b>all'interno di un topic</b> del gruppo Direzione.",
             parse_mode="HTML"
         )
-async def debug_dates(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    session = SessionLocal()
-    try:
-        bookings = session.query(Booking).filter(Booking.status == "completed").all()
-
-        if not bookings:
-            await update.message.reply_text("Nessun booking completato trovato.")
-            return
-
-        lines = ["Date dei booking completati:", ""]
-
-        for b in bookings[:20]:  # primi 20
-            lines.append(f"ID {b.id} → {b.updated_at} (type: {type(b.updated_at)})")
-
-        await update.message.reply_text("\n".join(lines))
-
-    finally:
-        session.close()
-
 
 
 # ---- BUILD APPLICATION ----
@@ -2199,7 +2176,6 @@ def build_application():
     app.add_handler(CommandHandler("riassegna", riassegna))  
     app.add_handler(CallbackQueryHandler(reassign_callback, pattern=r"^reassign_"))
     app.add_handler(CommandHandler("report_settimana", manual_weekly_report))
-    app.add_handler(CommandHandler("debug_dates", debug_dates))
 
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern=r"^(confirm_remove_|cancel_remove)"))
