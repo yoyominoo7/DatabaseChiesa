@@ -2003,8 +2003,8 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
     session = SessionLocal()
     try:
         # 📌 Date richieste: 23/03 → 29/03 in ora italiana
-        start = ROME_TZ.localize(datetime(2025, 3, 23, 0, 0, 0))
-        end   = ROME_TZ.localize(datetime(2025, 3, 29, 23, 59, 59))
+        start = datetime(2026, 3, 23, 0, 0, 0, tzinfo=timezone.utc)
+        end   = datetime(2026, 3, 29, 23, 59, 59, tzinfo=timezone.utc)
 
         # Prenotazioni completate nella settimana
         completed = session.query(Booking).filter(
@@ -2039,7 +2039,7 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
                 for sac in sac_list:
                     sac_key = sac
 
-                    # MATRIMONIO BASE / PREMIUM
+                    # 🔹 MATRIMONIO BASE / PREMIUM
                     if sac.lower() == "matrimonio":
                         if "premium" in notes:
                             sac_key = "matrimonio premium"
@@ -2060,6 +2060,7 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
             for sac in sac_list:
                 sac_key = sac
 
+                # 🔹 MATRIMONIO BASE / PREMIUM
                 if sac.lower() == "matrimonio":
                     if "premium" in notes:
                         sac_key = "matrimonio premium"
@@ -2072,11 +2073,10 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
             Booking.status.in_(["pending", "assigned", "in_progress"])
         ).count()
 
-        # COSTRUZIONE MESSAGGIO
         lines = [
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️",
             "",
-            "📊 <b>Report settimanale (manuale)</b>",
+            "📊 <b>Report settimanale</b>",
             f"🗓 Periodo: <b>{start.date()} ➝ {end.date()}</b>",
             f"✝️ Totale sacramenti completati: <b>{total}</b>",
             "",
@@ -2095,13 +2095,16 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
                 if pid in priest_sacraments:
                     for sac, count in priest_sacraments[pid].items():
                         sac_name = sac.replace("_", " ")
-                        detail.append(f"{sac_name} ({count})" if count > 1 else sac_name)
+                        if count > 1:
+                            detail.append(f"{sac_name} ({count} volte)")
+                        else:
+                            detail.append(sac_name)
 
                 detail_str = ", ".join(detail) if detail else "Nessun sacramento registrato"
 
                 lines.append(f"- 🙏 Sacerdote <b>{priest_tag}</b>: {num} ➝ {detail_str}")
         else:
-            lines.append("ℹ️ Nessun sacramento completato dai sacerdoti in questo periodo.")
+            lines.append("ℹ️ Nessun sacramento completato dai sacerdoti questa settimana.")
 
         lines.append("")
         lines.append("✝️ <b>Dettaglio per sacramento (totale):</b>")
@@ -2110,14 +2113,17 @@ async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYP
             for sac, num in per_sacrament.items():
                 lines.append(f"- {sac.replace('_',' ')}: {num}")
         else:
-            lines.append("ℹ️ Nessun sacramento completato in questo periodo.")
+            lines.append("ℹ️ Nessun sacramento completato questa settimana.")
 
         lines.append("")
         lines.append(f"📌 Prenotazioni ancora <b>aperte</b>: {open_items}")
 
-        await update.message.reply_text(
+        # Invio al gruppo direzione nel topic configurato
+        await app.bot.send_message(
+            DIRECTORS_GROUP_ID,
             "\n".join(lines),
-            parse_mode="HTML"
+            parse_mode="HTML",
+            message_thread_id=12874
         )
 
     finally:
