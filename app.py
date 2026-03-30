@@ -2153,15 +2153,16 @@ async def debug_dates(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Nessun booking completato trovato.")
             return
 
-        lines = ["<b>Date dei booking completati:</b>", ""]
+        lines = ["Date dei booking completati:", ""]
 
-        for b in bookings[:20]:  # primi 20 per non spammare
-            lines.append(f"ID {b.id} ➝ {b.updated_at} (type: {type(b.updated_at)})")
+        for b in bookings[:20]:  # primi 20
+            lines.append(f"ID {b.id} → {b.updated_at} (type: {type(b.updated_at)})")
 
-        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+        await update.message.reply_text("\n".join(lines))
 
     finally:
         session.close()
+
 
 
 # ---- BUILD APPLICATION ----
