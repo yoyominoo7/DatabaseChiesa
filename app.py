@@ -1999,6 +1999,130 @@ async def weekly_report(app):
     finally:
         session.close()
 
+async def manual_weekly_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    session = SessionLocal()
+    try:
+        # 📌 Date fisse richieste: 23/03 → 29/03
+        start = datetime(2025, 3, 23, 0, 0, 0, tzinfo=timezone.utc)
+        end   = datetime(2025, 3, 29, 23, 59, 59, tzinfo=timezone.utc)
+
+        # Prenotazioni completate nella settimana
+        completed = session.query(Booking).filter(
+            Booking.status == "completed",
+            Booking.updated_at >= start,
+            Booking.updated_at <= end
+        ).all()
+
+        total = len(completed)
+
+        per_priest = {}
+        priest_sacraments = {}
+
+        for b in completed:
+            a = session.query(Assignment).filter(
+                Assignment.booking_id == b.id
+            ).first()
+
+            pid = a.priest_telegram_id if a else None
+            if not pid:
+                continue
+
+            per_priest[pid] = per_priest.get(pid, 0) + 1
+
+            if b.sacrament:
+                sac_list = [s.strip() for s in b.sacrament.split(",")]
+                notes = (b.notes or "").lower()
+
+                if pid not in priest_sacraments:
+                    priest_sacraments[pid] = {}
+
+                for sac in sac_list:
+                    sac_key = sac
+
+                    # MATRIMONIO BASE / PREMIUM
+                    if sac.lower() == "matrimonio":
+                        if "premium" in notes:
+                            sac_key = "matrimonio premium"
+                        elif "base" in notes or "default" in notes:
+                            sac_key = "matrimonio base"
+
+                    priest_sacraments[pid][sac_key] = priest_sacraments[pid].get(sac_key, 0) + 1
+
+        per_sacrament = {}
+
+        for b in completed:
+            if not b.sacrament:
+                continue
+
+            sac_list = [s.strip() for s in b.sacrament.split(",")]
+            notes = (b.notes or "").lower()
+
+            for sac in sac_list:
+                sac_key = sac
+
+                if sac.lower() == "matrimonio":
+                    if "premium" in notes:
+                        sac_key = "matrimonio premium"
+                    elif "base" in notes or "default" in notes:
+                        sac_key = "matrimonio base"
+
+                per_sacrament[sac_key] = per_sacrament.get(sac_key, 0) + 1
+
+        open_items = session.query(Booking).filter(
+            Booking.status.in_(["pending", "assigned", "in_progress"])
+        ).count()
+
+        # COSTRUZIONE MESSAGGIO
+        lines = [
+            "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️",
+            "",
+            "📊 <b>Report settimanale (manuale)</b>",
+            f"🗓 Periodo: <b>{start.date()} ➝ {end.date()}</b>",
+            f"✝️ Totale sacramenti completati: <b>{total}</b>",
+            "",
+            "🏆 <b>Classifica sacerdoti:</b>"
+        ]
+
+        if per_priest:
+            for pid, num in sorted(per_priest.items(), key=lambda x: x[1], reverse=True):
+                priest = session.query(Priest).filter(
+                    Priest.telegram_id == pid
+                ).first()
+
+                priest_tag = f"@{priest.username}" if priest and priest.username else str(pid)
+
+                detail = []
+                if pid in priest_sacraments:
+                    for sac, count in priest_sacraments[pid].items():
+                        sac_name = sac.replace("_", " ")
+                        detail.append(f"{sac_name} ({count})" if count > 1 else sac_name)
+
+                detail_str = ", ".join(detail) if detail else "Nessun sacramento registrato"
+
+                lines.append(f"- 🙏 Sacerdote <b>{priest_tag}</b>: {num} ➝ {detail_str}")
+        else:
+            lines.append("ℹ️ Nessun sacramento completato dai sacerdoti in questo periodo.")
+
+        lines.append("")
+        lines.append("✝️ <b>Dettaglio per sacramento (totale):</b>")
+
+        if per_sacrament:
+            for sac, num in per_sacrament.items():
+                lines.append(f"- {sac.replace('_',' ')}: {num}")
+        else:
+            lines.append("ℹ️ Nessun sacramento completato in questo periodo.")
+
+        lines.append("")
+        lines.append(f"📌 Prenotazioni ancora <b>aperte</b>: {open_items}")
+
+        # Invio al segretario che ha richiesto il comando
+        await update.message.reply_text(
+            "\n".join(lines),
+            parse_mode="HTML"
+        )
+
+    finally:
+        session.close()
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.exception("Unhandled error", exc_info=context.error)
@@ -2049,6 +2173,7 @@ def build_application():
     # --- Direzione ---
     app.add_handler(CommandHandler("riassegna", riassegna))  
     app.add_handler(CallbackQueryHandler(reassign_callback, pattern=r"^reassign_"))
+    app.add_handler(CommandHandler("report_settimana", manual_weekly_report))
 
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern=r"^(confirm_remove_|cancel_remove)"))
