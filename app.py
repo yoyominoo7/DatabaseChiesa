@@ -2144,6 +2144,24 @@ async def get_topic_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<b>𝐂𝐔𝐋𝐓𝐎 𝐃𝐈 𝐏𝐎𝐒𝐄𝐈𝐃𝐎𝐍𝐄</b> ⚓️\n\n⚠️ Devi usare questo comando <b>all'interno di un topic</b> del gruppo Direzione.",
             parse_mode="HTML"
         )
+async def debug_dates(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    session = SessionLocal()
+    try:
+        bookings = session.query(Booking).filter(Booking.status == "completed").all()
+
+        if not bookings:
+            await update.message.reply_text("Nessun booking completato trovato.")
+            return
+
+        lines = ["<b>Date dei booking completati:</b>", ""]
+
+        for b in bookings[:20]:  # primi 20 per non spammare
+            lines.append(f"ID {b.id} ➝ {b.updated_at} (type: {type(b.updated_at)})")
+
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+    finally:
+        session.close()
 
 
 # ---- BUILD APPLICATION ----
@@ -2174,6 +2192,7 @@ def build_application():
     app.add_handler(CommandHandler("riassegna", riassegna))  
     app.add_handler(CallbackQueryHandler(reassign_callback, pattern=r"^reassign_"))
     app.add_handler(CommandHandler("report_settimana", manual_weekly_report))
+    app.add_handler(CommandHandler("debug_dates", debug_dates))
 
     app.add_handler(CommandHandler("lista_prenotazioni", lista_prenotazioni))
     app.add_handler(CallbackQueryHandler(handle_remove_callback, pattern=r"^(confirm_remove_|cancel_remove)"))
